@@ -1,12 +1,10 @@
-# watertemplate
-Our template
+# Korok
 
-## Usage
-To start a new project, follow the steps below:
+Korok is a lightweight hybrid search and reranking package.
 
-1. Replace `PACKAGE` with the name of your project.
+## Installation
 
-2. Run the following make commands to install the project:
+To install the package, run the following command:
 
 ```bash
 make install
