@@ -1,6 +1,6 @@
 [project]
-name = "PACKAGE"
-description = "DESCRIPTION"
+name = "korok"
+description = "Lightweight Hybrid Search and Reranking"
 readme = "README.md"
 dynamic = ["version"]
 requires-python = ">=3.10"
@@ -67,10 +67,10 @@ warn_unused_configs = true
 ignore_missing_imports = true
 
 [tool.setuptools]
-packages = ["PACKAGE"]
+packages = ["korok"]
 
 [tool.setuptools_scm]
 # can be empty if no extra settings are needed, presence enables setuptools_scm
 
 [tool.setuptools.dynamic]
-version = {attr = "PACKAGE.version.__version__"}
+version = {attr = "korok.version.__version__"}
