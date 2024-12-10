@@ -5,27 +5,33 @@ from typing import Any
 from model2vec import StaticModel
 from vicinity import Backend, Metric, Vicinity
 
+from korok.rerankers import CrossEncoderReranker
+
 
 class Pipeline:
     def __init__(
         self,
         encoder: StaticModel,
         vicinity: Vicinity,
+        reranker: CrossEncoderReranker | None = None,
     ) -> None:
         """
         Initialize a Pipeline instance.
 
         :param encoder: The encoder used to encode the items.
         :param vicinity: The vicinity object used to find nearest neighbors.
+        :param reranker: The reranker used to rerank the results (optional).
         """
         self.encoder = encoder
         self.vicinity = vicinity
+        self.reranker = reranker
 
     @classmethod
     def fit(
         cls,
         texts: list[str],
         encoder: StaticModel,
+        reranker: CrossEncoderReranker | None = None,
         **kwargs: Any,
     ) -> Pipeline:
         """
@@ -33,6 +39,7 @@ class Pipeline:
 
         :param texts: The texts to fit the encoder to.
         :param encoder: The encoder to use.
+        :param reranker: The reranker to use (optional).
         :param **kwargs: Additional keyword arguments.
         :return: A Pipeline instance.
         """
@@ -44,7 +51,7 @@ class Pipeline:
             metric=Metric.COSINE,
             **kwargs,
         )
-        return cls(encoder=encoder, vicinity=vicinity)
+        return cls(encoder=encoder, vicinity=vicinity, reranker=reranker)
 
     def query(
         self,
@@ -61,4 +68,8 @@ class Pipeline:
         """
         vectors = self.encoder.encode(texts, show_progressbar=True)
         results = self.vicinity.query(vectors, k)
+
+        # Apply reranker if available
+        if self.reranker is not None:
+            results = self.reranker(texts, results)
         return results
