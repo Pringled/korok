@@ -23,6 +23,10 @@ dev = [
     "pytest-coverage",
     "ruff",
 ]
+hybrid = [
+    "bm25s", 
+    "ranx"
+]
 
 [tool.ruff]
 exclude = [".venv/"]
