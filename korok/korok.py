@@ -21,7 +21,7 @@ class Pipeline:
         self,
         encoder: StaticModel,
         vicinity: Vicinity,
-        bm25s: "BM25S" | None = None
+        bm25s: "BM25S" | None = None, 
         reranker: CrossEncoderReranker | None = None,
     ) -> None:
         """
