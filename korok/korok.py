@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     import ranx
 
 
+
 class Pipeline:
     def __init__(
         self,
@@ -31,7 +32,6 @@ class Pipeline:
         :param encoder: The encoder used to encode the items.
         :param vicinity: The vicinity object used to find nearest neighbors.
         :param bm25s: The BM25S object used for keyword search.
-        :param reranker: The reranker used to rerank the results (optional).
         """
         self.encoder = encoder
         self.vicinity = vicinity
@@ -59,7 +59,6 @@ class Pipeline:
         texts: list[str],
         encoder: StaticModel,
         hybrid: bool = False,
-        reranker: CrossEncoderReranker | None = None,
         **kwargs: Any,
     ) -> Pipeline:
         """
@@ -84,8 +83,9 @@ class Pipeline:
             corpus_tokens = bm25s.tokenize(texts, stopwords="en")
             bm25.index(corpus_tokens)
             return cls(encoder=encoder, vicinity=vicinity, bm25s=bm25)
+            return cls(encoder=encoder, vicinity=vicinity, bm25s=bm25)
         
-        return cls(encoder=encoder, vicinity=vicinity, reranker=reranker)
+        return cls(encoder=encoder, vicinity=vicinity)
     
     def _fuse_results(self, 
                       texts: list[str],
@@ -140,10 +140,6 @@ class Pipeline:
             bm25_results = self.bm25.retrieve(query_tokens, k)
             results = self._fuse_results(texts, results, bm25_results)
 
-
-        # Apply reranker if available
-        if self.reranker is not None:
-            results = self.reranker(texts, results)
         return results
 
 
