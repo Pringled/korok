@@ -12,8 +12,6 @@ if TYPE_CHECKING:
     import bm25s
     from bm25s import BM25S
     import ranx
-    
-from korok.rerankers import CrossEncoderReranker
 
 
 class Pipeline:
@@ -22,7 +20,6 @@ class Pipeline:
         encoder: StaticModel,
         vicinity: Vicinity,
         bm25s: "BM25S" | None = None
-        reranker: CrossEncoderReranker | None = None,
     ) -> None:
         """
         Initialize a Pipeline instance.
@@ -30,11 +27,9 @@ class Pipeline:
         :param encoder: The encoder used to encode the items.
         :param vicinity: The vicinity object used to find nearest neighbors.
         :param bm25s: The BM25S object used for keyword search.
-        :param reranker: The reranker used to rerank the results (optional).
         """
         self.encoder = encoder
         self.vicinity = vicinity
-        self.reranker = reranker
 
         # Keeping the hybrid components separate from the main pipeline
         # and importing them only when needed
@@ -59,7 +54,6 @@ class Pipeline:
         texts: list[str],
         encoder: StaticModel,
         hybrid: bool = False,
-        reranker: CrossEncoderReranker | None = None,
         **kwargs: Any,
     ) -> Pipeline:
         """
@@ -67,7 +61,6 @@ class Pipeline:
 
         :param texts: The texts to fit the encoder to.
         :param encoder: The encoder to use.
-        :param reranker: The reranker to use (optional).
         :param **kwargs: Additional keyword arguments.
         :return: A Pipeline instance.
         """
@@ -79,15 +72,14 @@ class Pipeline:
             metric=Metric.COSINE,
             **kwargs,
         )
-
         # If hybrid is enabled, we need to fit the BM25S model
         if hybrid:
             bm25 = bm25s.BM25S()
             corpus_tokens = bm25s.tokenize(texts, stopwords="en")
             bm25.index(corpus_tokens)
-            return cls(encoder=encoder, vicinity=vicinity, bm25s=bm25, reranker=reranker)
+            return cls(encoder=encoder, vicinity=vicinity, bm25s=bm25)
         
-        return cls(encoder=encoder, vicinity=vicinity, reranker=reranker)
+        return cls(encoder=encoder, vicinity=vicinity)
     
     def _fuse_results(self, 
                       texts: list[str],
@@ -119,8 +111,6 @@ class Pipeline:
             for run in results.values()
         ]
         return results
-      
-        
 
     def query(
         self,
@@ -144,9 +134,6 @@ class Pipeline:
             bm25_results = self.bm25.retrieve(query_tokens, k)
             results = self._fuse_results(texts, results, bm25_results)
 
-        # Apply reranker if available
-        if self.reranker is not None:
-            results = self.reranker(texts, results)
         return results
 
 
