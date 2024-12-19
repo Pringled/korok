@@ -1,9 +1,10 @@
+import importlib
 from typing import List, Sequence, Tuple
-
-from sentence_transformers import CrossEncoder
-
+    
 
 class CrossEncoderReranker:
+    """A reranker class that uses a cross-encoder to rerank the results."""
+
     def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2", max_length: int = 512) -> None:
         """
         Initialize the CrossEncoder reranker.
@@ -11,8 +12,19 @@ class CrossEncoderReranker:
         :param model_name: The name of the pre-trained cross-encoder model.
         :param max_length: The maximum sequence length for the cross-encoder.
         """
+        if not self.is_available():
+            raise ImportError("sentence_transformers is not installed. Please install it using `pip install korok[rerankers]`.")
+        else:
+            global CrossEncoder
+            from sentence_transformers import CrossEncoder
+
         self.cross_encoder = CrossEncoder(model_name)
         self.cross_encoder.max_length = max_length
+    
+    @classmethod
+    def is_available(cls) -> bool:
+        """Check if the cross-encoder rerankeris available."""
+        return importlib.util.find_spec("sentence_transformers") is not None
 
     def __call__(
         self,
