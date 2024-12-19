@@ -52,7 +52,7 @@ class Pipeline:
         texts: list[str],
         encoder: StaticModel,
         reranker: CrossEncoderReranker | None = None,
-        alpha: float = 0.5,
+        alpha: float = 1.0,
         **kwargs: Any,
     ) -> Pipeline:
         """
