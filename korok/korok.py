@@ -170,7 +170,7 @@ class Pipeline:
         vectors = self.encoder.encode(texts, show_progressbar=True)
         results = self.vicinity.query(vectors, k)
 
-        # Do bm25 search if alpha > 0 and merge results
+        # Do bm25 search if alpha < 1 and merge results
         if self.bm25 is not None and self.alpha < 1.0:
             query_tokens = bm25s.tokenize(texts, stopwords="en")
             bm25_results = self.bm25.retrieve(query_tokens, k=k, corpus=self.corpus, return_as="tuple")
