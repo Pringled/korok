@@ -30,6 +30,8 @@ class Pipeline:
         :param reranker: The reranker used to rerank the results (optional).
         :param bm25: The bm25 index used for hybrid search (optional).   
         :param alpha: The alpha value for the hybrid search (optional).
+        :param corpus: The corpus used for bm25 search (optional).
+        
         """
         self.encoder = encoder
         self.vicinity = vicinity
