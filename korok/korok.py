@@ -59,6 +59,7 @@ class Pipeline:
         encoder: StaticModel,
         reranker: CrossEncoderReranker | None = None,
         alpha: float = 1.0,
+        stopwords: str | List[str] = "en",
         **kwargs: Any,
     ) -> Pipeline:
         """
@@ -68,6 +69,7 @@ class Pipeline:
         :param encoder: The encoder to use.
         :param reranker: The reranker to use (optional).
         :param alpha: The alpha value for the hybrid search (optional).
+        :param stopwords: The stopwords to use for bm25 search (optional).
         :param **kwargs: Additional keyword arguments.
         :return: A Pipeline instance.
         """
@@ -86,7 +88,7 @@ class Pipeline:
             import bm25s
 
             bm25 = bm25s.BM25()
-            tokens = bm25s.tokenize(texts, stopwords="en")
+            tokens = bm25s.tokenize(texts, stopwords=stopwords)
             bm25.index(tokens)
         else:
             bm25 = None
