@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, List, Tuple
 
 import bm25s
@@ -9,6 +10,16 @@ from vicinity import Backend, Metric, Vicinity
 
 from korok.rerankers import CrossEncoderReranker
 
+
+@dataclass
+class Document:
+    text: str
+    vicinity_score: float = 0.0
+    bm25_score: float = 0.0
+
+    def combine_scores(self, alpha: float) -> float:
+        """Combine the vicinity and bm25 scores."""
+        return self.vicinity_score * alpha + self.bm25_score * (1 - alpha)
 
 class Pipeline:
     def __init__(
@@ -84,17 +95,24 @@ class Pipeline:
 
     def _normalize_scores(self, scores: np.ndarray) -> np.ndarray:
         """Normalize the scores to be between 0 and 1."""
-        denom = np.max(scores, axis=-1).reshape(-1, 1) - np.min(scores, axis=-1).reshape(-1, 1)
-        numerator = scores - np.min(scores, axis=-1).reshape(-1, 1)
+        # Get the min and max scores for each document
+        min_score = np.min(scores, axis=-1).reshape(-1, 1)
+        max_score = np.max(scores, axis=-1).reshape(-1, 1)
+
+        # Normalize the scores
+        denom = max_score - min_score
+        numerator = scores - min_score
+
         return numerator / denom
 
     def _split_vicinity_results(self, results: List[List[Tuple[str, float]]]) -> List[List[Tuple[str, float]]]:
         """Split the results from vector search into two lists."""
         vicinity_docs = []
         vicinity_scores = []
-        for i in range(len(results)):
-            vicinity_docs.append([str(results[i][j][0]) for j in range(len(results[i]))])
-            vicinity_scores.append([results[i][j][1] for j in range(len(results[i]))])
+        for result in results:
+            for doc, score in result:
+                vicinity_docs.append(doc)
+                vicinity_scores.append(score)
         vicinity_scores = np.array(vicinity_scores)
         return vicinity_docs, vicinity_scores
 
@@ -122,20 +140,20 @@ class Pipeline:
         # Combine the docs and scores into a dictionary (to account for mismatched docs)
         for i in range(len(vicinity_results)):
             for doc, score in zip(vicinity_docs[i], vicinity_scores[i]):
-                scores_list[i][doc] = {"vicinity": score, "bm25": 0}
+                scores_list[i][doc] = Document(text=doc, vicinity_score=score)
 
             for doc, score in zip(bm25_docs[i], bm25_scores[i]):
                 if doc not in scores_list[i]:
-                    scores_list[i][doc] = {"vicinity": 0, "bm25": score}
+                    scores_list[i][doc] = Document(text=doc, bm25_score=score)
                 else:
-                    scores_list[i][doc]["bm25"] = score
+                    scores_list[i][doc].bm25_score = score
 
         # Combine the docs and scores into a list of tuples
         results = []
         for i in range(len(vicinity_results)):
             results.append([])
             for key, value in scores_list[i].items():
-                results[i].append((key, value["bm25"] * (1 - self.alpha) + value["vicinity"] * self.alpha))
+                results[i].append((key, value.combine_scores(self.alpha)))
 
             # Sort the scores
             results[i].sort(key=lambda x: x[1], reverse=True)
