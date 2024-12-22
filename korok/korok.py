@@ -151,9 +151,9 @@ class Pipeline:
         # Combine the docs and scores into a list of tuples
         results = []
         for i in range(len(vicinity_results)):
-            results.append([])
-            for key, value in scores_list[i].items():
-                results[i].append((key, value.combine_scores(self.alpha)))
+            # Get the combined scores
+            results.append([(key, value.combine_scores(self.alpha))
+                             for key, value in scores_list[i].items()])
 
             # Sort the scores
             results[i].sort(key=lambda x: x[1], reverse=True)
