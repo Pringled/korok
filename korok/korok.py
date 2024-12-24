@@ -14,7 +14,7 @@ from korok.rerankers import CrossEncoderReranker
 
 @dataclass
 class Document:
-    text: str
+    text: str = None
     vicinity_score: float = 0.0
     bm25_score: float = 0.0
 
