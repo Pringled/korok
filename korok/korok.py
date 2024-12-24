@@ -105,17 +105,17 @@ class Pipeline:
         denom = max_score - min_score
         numerator = scores - min_score
 
-        return numerator / denom
+        # Handle division by zero
+        result = np.divide(numerator, denom)
+        assert scores.shape == result.shape, \
+              ("Shape mismatch between scores and result",
+               f"scores shape: {scores.shape}, result shape: {result.shape}")
+        return result
 
     def _split_vicinity_results(self, results: List[List[Tuple[str, float]]]) -> Tuple[List[str], np.ndarray]:
         """Split the results from vector search into two lists."""
-        vicinity_docs = []
-        vicinity_scores = []
-        for result in results:
-            for doc, score in result:
-                vicinity_docs.append(doc)
-                vicinity_scores.append(score)
-        vicinity_scores = np.array(vicinity_scores)
+        vicinity_docs = [[doc for doc, _ in result] for result in results]
+        vicinity_scores = np.array([[score for _, score in result] for result in results])
         return (vicinity_docs, vicinity_scores)
 
     def _merge_results(
