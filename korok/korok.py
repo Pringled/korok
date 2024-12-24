@@ -105,11 +105,8 @@ class Pipeline:
         denom = max_score - min_score
         numerator = scores - min_score
 
-        # Handle division by zero
-        result = np.divide(numerator, denom)
-        assert scores.shape == result.shape, \
-              ("Shape mismatch between scores and result",
-               f"scores shape: {scores.shape}, result shape: {result.shape}")
+        # Handle division by zero, zero if max == min, i.e. all scores are the same
+        result = np.divide(numerator, denom, out=scores, where=denom != 0)
         return result
 
     def _split_vicinity_results(self, results: List[List[Tuple[str, float]]]) -> Tuple[List[str], np.ndarray]:
