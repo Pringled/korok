@@ -58,6 +58,7 @@ class Pipeline:
         texts: list[str],
         encoder: StaticModel,
         reranker: CrossEncoderReranker | None = None,
+        hybrid: bool = False,
         alpha: float = 1.0,
         stopwords: str | List[str] = "en",
         **kwargs: Any,
@@ -68,6 +69,7 @@ class Pipeline:
         :param texts: The texts to fit the encoder to.
         :param encoder: The encoder to use.
         :param reranker: The reranker to use (optional).
+        :param hybrid: Whether to use hybrid search (optional).
         :param alpha: The alpha value for the hybrid search (optional).
         :param stopwords: The stopwords to use for bm25 search (optional).
         :param **kwargs: Additional keyword arguments.
@@ -81,12 +83,9 @@ class Pipeline:
             metric=Metric.COSINE,
             **kwargs,
         )
-
-        # Add bm25s if alpha > 0
-        if cls.is_hybrid_available() and alpha < 1.0:
-            global bm25s
-            import bm25s
-
+        
+        # Add bm25s if hybrid search is enabled and alpha < 1.0
+        if hybrid and alpha < 1.0:
             bm25 = bm25s.BM25()
             tokens = bm25s.tokenize(texts, stopwords=stopwords)
             bm25.index(tokens)
@@ -107,7 +106,7 @@ class Pipeline:
 
         return numerator / denom
 
-    def _split_vicinity_results(self, results: List[List[Tuple[str, float]]]) -> List[List[Tuple[str, float]]]:
+    def _split_vicinity_results(self, results: List[List[Tuple[str, float]]]) -> Tuple[List[str], np.ndarray]:
         """Split the results from vector search into two lists."""
         vicinity_docs = []
         vicinity_scores = []
@@ -116,7 +115,7 @@ class Pipeline:
                 vicinity_docs.append(doc)
                 vicinity_scores.append(score)
         vicinity_scores = np.array(vicinity_scores)
-        return vicinity_docs, vicinity_scores
+        return (vicinity_docs, vicinity_scores)
 
     def _merge_results(
         self,
