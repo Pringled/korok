@@ -153,14 +153,13 @@ class Pipeline:
         results = []
         for i in range(len(vicinity_results)):
             # Get the combined scores
-            results.append([(key, value.combine_scores(self.alpha))
-                             for key, value in scores_list[i].items()])
-
+            result = [(key, value.combine_scores(self.alpha)) for key, value in scores_list[i].items()]
+            
             # Sort the scores
-            results[i].sort(key=lambda x: x[1], reverse=True)
+            result.sort(key=lambda x: x[1], reverse=True)
 
             # Take the top k results
-            results[i] = results[i][:k]
+            results.append(result[:k])
 
         return results
 
