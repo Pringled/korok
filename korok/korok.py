@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, List, Tuple
 
@@ -125,7 +126,7 @@ class Pipeline:
     ) -> List[List[tuple[str, float]]]:
         """Merge the results from vector search and bm25 search."""
         # Initialize the scores list
-        scores_list = [{} for i in range(len(vicinity_results))]
+        scores_list = []
 
         # Split the results into docs and scores
         vicinity_docs, vicinity_scores = self._split_vicinity_results(vicinity_results)
@@ -140,14 +141,14 @@ class Pipeline:
 
         # Combine the docs and scores into a dictionary (to account for mismatched docs)
         for i in range(len(vicinity_results)):
+            scores_list.append(defaultdict(Document))
             for doc, score in zip(vicinity_docs[i], vicinity_scores[i]):
-                scores_list[i][doc] = Document(text=doc, vicinity_score=score)
+                scores_list[i][doc].text = doc
+                scores_list[i][doc].vicinity_score = score
 
             for doc, score in zip(bm25_docs[i], bm25_scores[i]):
-                if doc not in scores_list[i]:
-                    scores_list[i][doc] = Document(text=doc, bm25_score=score)
-                else:
-                    scores_list[i][doc].bm25_score = score
+                scores_list[i][doc].text = doc
+                scores_list[i][doc].bm25_score = score
 
         # Combine the docs and scores into a list of tuples
         results = []
