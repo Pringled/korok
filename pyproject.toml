@@ -8,6 +8,9 @@ requires-python = ">=3.10"
 dependencies = [
     "model2vec",
     "vicinity",
+    "sentence-transformers",
+    "transformers<4.47.0",
+    "bm25s"
 ]
 
 [build-system]
@@ -35,6 +38,7 @@ all = [
     "vicinity",
     "sentence-transformers",
     "transformers<4.47.0",
+    "bm25s",
 ]
 
 [tool.ruff]
