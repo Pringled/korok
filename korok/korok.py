@@ -22,6 +22,7 @@ class Document:
         """Combine the vicinity and bm25 scores."""
         return self.vicinity_score * alpha + self.bm25_score * (1 - alpha)
 
+
 class Pipeline:
     def __init__(
         self,
@@ -41,7 +42,7 @@ class Pipeline:
         :param bm25: The bm25 index used for hybrid search (optional).
         :param alpha: The alpha value for the hybrid search (optional).
         :param corpus: The corpus used for bm25 search (optional).
-
+        :raises ValueError: If alpha is not between 0 and 1.
         """
         self.encoder = encoder
         self.vicinity = vicinity
@@ -84,7 +85,7 @@ class Pipeline:
             metric=Metric.COSINE,
             **kwargs,
         )
-        
+
         # Add bm25s if hybrid search is enabled and alpha < 1.0
         if hybrid and alpha < 1.0:
             bm25 = bm25s.BM25()
@@ -152,7 +153,7 @@ class Pipeline:
         for i in range(len(vicinity_results)):
             # Get the combined scores
             result = [(key, value.combine_scores(self.alpha)) for key, value in scores_list[i].items()]
-            
+
             # Sort the scores
             result.sort(key=lambda x: x[1], reverse=True)
 
@@ -165,27 +166,33 @@ class Pipeline:
         self,
         texts: list[str],
         k: int = 10,
+        k_reranker: int = 30,
     ) -> list[list[tuple[str, float]]]:
         """
         Find the nearest neighbors for a list of texts.
 
         :param texts: Texts to query for
         :param k: The number of most similar items to retrieve.
+        :param k_reranker: The number of items to consider for reranking.
         :return: For each item in the input, the num most similar items are returned in the form of
             (NAME, SIMILARITY) tuples.
         """
-        # Do vector search
+        # Encode the texts and find the nearest neighbors
         vectors = self.encoder.encode(texts, show_progressbar=True)
-        results = self.vicinity.query(vectors, k)
+        results = self.vicinity.query(vectors, k_reranker)
+
+        # Convert the distances to similarities
+        results = [[(doc, 1.0 - score) for doc, score in result] for result in results]
 
         # Do bm25 search if alpha < 1 and merge results
         if self.bm25 is not None and self.alpha < 1.0:
             query_tokens = bm25s.tokenize(texts, stopwords="en")
-            bm25_results = self.bm25.retrieve(query_tokens, k=k, corpus=self.corpus, return_as="tuple")
-            results = self._merge_results(results, bm25_results, k=k)
+            bm25_results = self.bm25.retrieve(query_tokens, k=k_reranker, corpus=self.corpus, return_as="tuple")
+            results = self._merge_results(results, bm25_results, k=k_reranker)
 
         # Apply reranker if available
         if self.reranker is not None:
             results = self.reranker(texts, results)
 
-        return results
+        # Return the top k results
+        return results[:k]
