@@ -10,7 +10,7 @@ from vicinity import Backend, Metric, Vicinity
 
 from korok.datatypes import DenseResult, Document, HybridResult, QueryResult, SparseResult
 from korok.rerankers import CrossEncoderReranker
-from korok.utils import Encoder
+from korok.utils import Encoder, normalize_scores
 
 
 class Pipeline:
@@ -109,20 +109,6 @@ class Pipeline:
             corpus=texts,
         )
 
-    def _normalize_scores(self, scores: np.ndarray) -> np.ndarray:
-        """Min-max normalize row-wise."""
-        min_vals = np.min(scores, axis=-1, keepdims=True)
-        max_vals = np.max(scores, axis=-1, keepdims=True)
-        denom = max_vals - min_vals
-        denom[denom == 0] = 1e-9
-        return (scores - min_vals) / denom
-
-    def _split_dense_results(self, results: DenseResult) -> tuple[list[list[str]], np.ndarray]:
-        """Split the results from the dense index into docs and scores."""
-        docs = [[doc for doc, _ in row] for row in results]
-        scores = np.array([[float(score) for _, score in row] for row in results])
-        return (docs, scores)
-
     def _merge_results(
         self,
         dense_results: DenseResult,
@@ -130,18 +116,22 @@ class Pipeline:
         k: int,
     ) -> HybridResult:
         """Merge dense and sparse results."""
-        # Unpack
-        dense_docs, dense_scores = self._split_dense_results(dense_results)
+        # Unpack dense results
+        dense_docs, dense_scores = (
+            [[doc for doc, _ in row] for row in dense_results],
+            np.array([[float(score) for _, score in row] for row in dense_results]),
+        )
+        # Unpack sparse results
         sparse_docs, sparse_scores = sparse_results
 
-        # Ensure docs are strings
+        # Convert sparse docs to strings
         sparse_docs = [[str(doc) for doc in doclist] for doclist in sparse_docs]
 
         # Normalize scores
-        dense_scores = self._normalize_scores(dense_scores)
-        sparse_scores = self._normalize_scores(sparse_scores)
+        dense_scores = normalize_scores(dense_scores)
+        sparse_scores = normalize_scores(sparse_scores)
 
-        results_out: HybridResult = []
+        results: HybridResult = []
         for i in range(len(dense_results)):
             doc_map: DefaultDict[str, Document] = defaultdict(Document)
 
@@ -154,19 +144,19 @@ class Pipeline:
                 doc_map[doc].text = doc
                 doc_map[doc].sparse_score = float(score)
 
-            # Combine + partial sort
+            # Combine scores and sort
             combined = [(doc_id, d_obj.combine_scores(self.alpha)) for doc_id, d_obj in doc_map.items()]
             top_k = heapq.nlargest(k, combined, key=lambda x: x[1])
-            results_out.append(top_k)
+            results.append(top_k)
 
-        return results_out
+        return results
 
     def query(self, texts: list[str], k: int = 10) -> QueryResult:
         """
         Query the pipeline.
 
         This does the following:
-          - Hybrid search if we have both dense & sparse indexes.
+          - Hybrid search if we have both dense and sparse indexes.
           - Dense search if we have only have a dense index.
           - Sparse search if we have only a sparse index.
           - Reranking if a reranker is provided.
@@ -187,18 +177,17 @@ class Pipeline:
             tokens = bm25s.tokenize(texts, stopwords="en")
             sparse_results = self.sparse_index.retrieve(tokens, k=k, corpus=self.corpus, return_as="tuple")
 
-        # Hybrid: merge dense and sparse results
+        # Hybrid search
         if dense_results is not None and sparse_results is not None:
-            # Hybrid: merge dense and sparse results.
             results = self._merge_results(dense_results, sparse_results, k)
-        # Dense only
+        # Dense search
         elif dense_results is not None:
             results = dense_results
-        # Sparse only
+        # Sparse search
         elif sparse_results is not None:
             # Normalize and partial sort sparse results
             docs, scores = sparse_results
-            scores = self._normalize_scores(scores)
+            scores = normalize_scores(scores)
             results = [
                 heapq.nlargest(k, zip(row_docs, row_scores), key=lambda x: x[1])
                 for row_docs, row_scores in zip(docs, scores)
