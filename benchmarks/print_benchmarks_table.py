@@ -24,7 +24,7 @@ def load_results(folder: Path) -> tuple[dict, dict]:
     return config, overall
 
 
-def generate_markdown_row(config: dict, overall: dict) -> str:
+def generate_markdown_row(config: dict, overall: dict) -> str:  # noqa: C901
     """
     Generate a markdown table row from the config and overall results.
 
@@ -32,11 +32,11 @@ def generate_markdown_row(config: dict, overall: dict) -> str:
       - Encoder Model
       - Reranker Model
       - BM25 flag
-      - NDCG@10
-      - MAP@10
-      - Recall@10
-      - Precision@10
-      - QPS
+      - NDCG@10 (as percentage)
+      - MAP@10 (as percentage)
+      - Recall@10 (as percentage)
+      - Precision@10 (as percentage)
+      - QPS (rounded to 2 decimals)
 
     :param config: The configuration dictionary loaded from config.json.
     :param overall: The overall results dictionary loaded from overall_results.json.
@@ -47,13 +47,53 @@ def generate_markdown_row(config: dict, overall: dict) -> str:
     bm25 = config.get("bm25", False)
 
     aggregated_scores = overall.get("aggregated_scores", {})
-    ndcg_at_10 = aggregated_scores.get("ndcg", {}).get("NDCG@10", "N/A")
-    map_at_10 = aggregated_scores.get("map", {}).get("MAP@10", "N/A")
-    recall_at_10 = aggregated_scores.get("recall", {}).get("Recall@10", "N/A")
-    precision_at_10 = aggregated_scores.get("precision", {}).get("P@10", "N/A")
+
+    # Convert score values to percentages inline.
+    ndcg_raw = aggregated_scores.get("ndcg", {}).get("NDCG@10", None)
+    if ndcg_raw is not None:
+        try:
+            ndcg_at_10 = f"{float(ndcg_raw)*100:.2f}"
+        except (TypeError, ValueError):
+            ndcg_at_10 = "N/A"
+    else:
+        ndcg_at_10 = "N/A"
+
+    map_raw = aggregated_scores.get("map", {}).get("MAP@10", None)
+    if map_raw is not None:
+        try:
+            map_at_10 = f"{float(map_raw)*100:.2f}"
+        except (TypeError, ValueError):
+            map_at_10 = "N/A"
+    else:
+        map_at_10 = "N/A"
+
+    recall_raw = aggregated_scores.get("recall", {}).get("Recall@10", None)
+    if recall_raw is not None:
+        try:
+            recall_at_10 = f"{float(recall_raw)*100:.2f}"
+        except (TypeError, ValueError):
+            recall_at_10 = "N/A"
+    else:
+        recall_at_10 = "N/A"
+
+    precision_raw = aggregated_scores.get("precision", {}).get("P@10", None)
+    if precision_raw is not None:
+        try:
+            precision_at_10 = f"{float(precision_raw)*100:.2f}"
+        except (TypeError, ValueError):
+            precision_at_10 = "N/A"
+    else:
+        precision_at_10 = "N/A"
 
     throughput = overall.get("throughput", {})
-    qps = throughput.get("qps", "N/A")
+    qps_raw = throughput.get("qps", None)
+    if qps_raw is not None:
+        try:
+            qps = f"{float(qps_raw):.2f}"
+        except (TypeError, ValueError):
+            qps = "N/A"
+    else:
+        qps = "N/A"
 
     row = (
         f"| {encoder_model} | {reranker_model} | {bm25} | {ndcg_at_10} | {map_at_10} | "
