@@ -1,4 +1,4 @@
-from typing import List, Sequence, Tuple
+from typing import Sequence
 
 from sentence_transformers import CrossEncoder
 
@@ -17,8 +17,8 @@ class CrossEncoderReranker:
     def __call__(
         self,
         query_texts: Sequence[str],
-        results_list: List[List[Tuple[str, float]]],
-    ) -> List[List[Tuple[str, float]]]:
+        results_list: list[list[tuple[str, float]]],
+    ) -> list[list[tuple[str, float]]]:
         """
         Rerank the results using the cross-encoder.
 

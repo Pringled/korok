@@ -1,196 +1,200 @@
 from __future__ import annotations
 
+import heapq
 from collections import defaultdict
-from dataclasses import dataclass
-from typing import Any, List, Tuple
+from typing import Any, DefaultDict
 
 import bm25s
 import numpy as np
-from model2vec import StaticModel
 from vicinity import Backend, Metric, Vicinity
 
+from korok.datatypes import DenseResult, Document, HybridResult, QueryResult, SparseResult
 from korok.rerankers import CrossEncoderReranker
-
-
-@dataclass
-class Document:
-    text: str = None
-    vicinity_score: float = 0.0
-    bm25_score: float = 0.0
-
-    def combine_scores(self, alpha: float) -> float:
-        """Combine the vicinity and bm25 scores."""
-        return self.vicinity_score * alpha + self.bm25_score * (1 - alpha)
+from korok.utils import Encoder, normalize_scores
 
 
 class Pipeline:
     def __init__(
         self,
-        encoder: StaticModel,
-        vicinity: Vicinity,
+        encoder: Encoder | None = None,
+        dense_index: Vicinity | None = None,
+        sparse_index: bm25s.BM25 | None = None,
         reranker: CrossEncoderReranker | None = None,
-        bm25: bm25s.BM25 | None = None,
         alpha: float = 0.5,
         corpus: list[str] | None = None,
     ) -> None:
         """
         Initialize a Pipeline instance.
 
-        :param encoder: The encoder used to encode the items.
-        :param vicinity: The vicinity object used to find nearest neighbors.
-        :param reranker: The reranker used to rerank the results (optional).
-        :param bm25: The bm25 index used for hybrid search (optional).
-        :param alpha: The alpha value for the hybrid search (optional).
-        :param corpus: The corpus used for bm25 search (optional).
-        :raises ValueError: If alpha is not between 0 and 1.
+        :param encoder: An encoder for dense vector search.
+        :param dense_index: A dense vector index using the provided encoder.
+        :param sparse_index: A sparse vector index using BM25.
+        :param reranker: A cross-encoder reranker.
+        :param alpha: The alpha value for hybrid search.
+        :param corpus: List of documents used for BM25.
         """
         self.encoder = encoder
-        self.vicinity = vicinity
+        self.dense_index = dense_index
+        self.sparse_index = sparse_index
         self.reranker = reranker
-        self.bm25 = bm25
         self.alpha = alpha
         self.corpus = corpus
-
-        if self.alpha < 0.0 or self.alpha > 1.0:
-            raise ValueError("Alpha must be between 0 and 1")
 
     @classmethod
     def fit(
         cls,
         texts: list[str],
-        encoder: StaticModel,
+        encoder: Encoder | None = None,
+        bm25: bool = False,
         reranker: CrossEncoderReranker | None = None,
-        hybrid: bool = False,
-        alpha: float = 1.0,
-        stopwords: str | List[str] = "en",
+        backend_type: Backend = Backend.BASIC,
+        distance_metric: Metric = Metric.COSINE,
+        alpha: float = 0.5,
+        stopwords: str | list[str] = "en",
         **kwargs: Any,
     ) -> Pipeline:
         """
-        Fit the encoder to the texts.
+        Fit a pipeline on a corpus of documents.
 
-        :param texts: The texts to fit the encoder to.
-        :param encoder: The encoder to use.
-        :param reranker: The reranker to use (optional).
-        :param hybrid: Whether to use hybrid search (optional).
-        :param alpha: The alpha value for the hybrid search (optional).
-        :param stopwords: The stopwords to use for bm25 search (optional).
-        :param **kwargs: Additional keyword arguments.
+        - If an encoder is provided, build a dense vector index using the encoder.
+        - If bm25 is True, build a sparse vector index using BM25.
+        - If both are provided, build a hybrid index.
+        - If a reranker is provided, rerank the results for each query.
+
+        :param texts: The corpus of documents to index.
+        :param encoder: An encoder for dense vector search.
+        :param bm25: A bool indicating whether to build a BM25 index for sparse vector search.
+        :param reranker: A cross-encoder reranker.
+        :param backend_type: The backend type for the dense vector index.
+        :param distance_metric: The distance metric for the dense vector index.
+        :param alpha: The alpha value for hybrid search.
+            Lower values give more weight to sparse search, higher values to dense search.
+        :param stopwords: Stopwords for BM25 tokenization. Defaults to "en" (English stopwords).
+        :param **kwargs: Additional args passed to Vicinity.from_vectors_and_items.
         :return: A Pipeline instance.
+        :raises ValueError: If neither encoder nor bm25 is provided.
+        :raises ValueError: If alpha is not between 0 and 1.
         """
-        vectors = encoder.encode(texts, show_progressbar=True)
-        vicinity = Vicinity.from_vectors_and_items(
-            vectors=vectors,
-            items=texts,
-            backend_type=Backend.BASIC,
-            metric=Metric.COSINE,
-            **kwargs,
-        )
+        if encoder is None and bm25 is False:
+            raise ValueError("At least one of encoder or bm25 must be provided.")
 
-        # Add bm25s if hybrid search is enabled and alpha < 1.0
-        if hybrid and alpha < 1.0:
-            bm25 = bm25s.BM25()
+        if not (0.0 <= alpha <= 1.0):
+            raise ValueError("Alpha must be between 0 and 1")
+
+        # Build a dense vector index using the encoder
+        dense_index = None
+        if encoder is not None:
+            vectors = encoder.encode(texts, show_progressbar=True)
+            dense_index = Vicinity.from_vectors_and_items(
+                vectors=vectors,
+                items=texts,
+                backend_type=backend_type,
+                metric=distance_metric,
+                **kwargs,
+            )
+
+        # Build a sparse vector index using BM25
+        sparse_index = None
+        if bm25:
+            sparse_index = bm25s.BM25()
             tokens = bm25s.tokenize(texts, stopwords=stopwords)
-            bm25.index(tokens)
-        else:
-            bm25 = None
+            sparse_index.index(tokens)
 
-        return cls(encoder=encoder, vicinity=vicinity, reranker=reranker, bm25=bm25, alpha=alpha, corpus=texts)
-
-    def _normalize_scores(self, scores: np.ndarray) -> np.ndarray:
-        """Normalize the scores to be between 0 and 1."""
-        # Get the min and max scores for each document
-        min_score = np.min(scores, axis=-1).reshape(-1, 1)
-        max_score = np.max(scores, axis=-1).reshape(-1, 1)
-
-        # Normalize the scores
-        denom = max_score - min_score
-        numerator = scores - min_score
-
-        # Handle division by zero, zero if max == min, i.e. all scores are the same
-        result = np.divide(numerator, denom, out=scores, where=denom != 0)
-        return result
-
-    def _split_vicinity_results(self, results: List[List[Tuple[str, float]]]) -> Tuple[List[str], np.ndarray]:
-        """Split the results from vector search into two lists."""
-        vicinity_docs = [[doc for doc, _ in result] for result in results]
-        vicinity_scores = np.array([[score for _, score in result] for result in results])
-        return (vicinity_docs, vicinity_scores)
+        return cls(
+            encoder=encoder,
+            dense_index=dense_index,
+            sparse_index=sparse_index,
+            reranker=reranker,
+            alpha=alpha,
+            corpus=texts,
+        )
 
     def _merge_results(
         self,
-        vicinity_results: List[List[Tuple[str, np.float64]]],
-        bm25_results: Tuple[List[List[str]], np.ndarray],
-        k: int = 10,
-    ) -> List[List[tuple[str, float]]]:
-        """Merge the results from vector search and bm25 search."""
-        # Initialize the scores list
-        scores_list = []
+        dense_results: DenseResult,
+        sparse_results: SparseResult,
+        k: int,
+    ) -> HybridResult:
+        """Merge dense and sparse results."""
+        # Unpack dense results
+        dense_docs, dense_scores = (
+            [[doc for doc, _ in row] for row in dense_results],
+            np.array([[float(score) for _, score in row] for row in dense_results]),
+        )
+        # Unpack sparse results
+        sparse_docs, sparse_scores = sparse_results
 
-        # Split the results into docs and scores
-        vicinity_docs, vicinity_scores = self._split_vicinity_results(vicinity_results)
-        bm25_docs, bm25_scores = bm25_results
+        # Convert sparse docs to strings
+        sparse_docs = [[str(doc) for doc in doclist] for doclist in sparse_docs]
 
-        # convert bm25 docs to strings
-        bm25_docs = [[str(doc) for doc in doclist] for doclist in bm25_docs]
+        # Normalize scores
+        dense_scores = normalize_scores(dense_scores)
+        sparse_scores = normalize_scores(sparse_scores)
 
-        # Normalize the scores
-        vicinity_scores = self._normalize_scores(vicinity_scores)
-        bm25_scores = self._normalize_scores(bm25_scores)
+        results: HybridResult = []
+        for i in range(len(dense_results)):
+            doc_map: DefaultDict[str, Document] = defaultdict(Document)
 
-        # Combine the docs and scores into a dictionary (to account for mismatched docs)
-        for i in range(len(vicinity_results)):
-            scores_list.append(defaultdict(Document))
-            for doc, score in zip(vicinity_docs[i], vicinity_scores[i]):
-                scores_list[i][doc].text = doc
-                scores_list[i][doc].vicinity_score = score
+            # Assign scores for each document
+            for doc, score in zip(dense_docs[i], dense_scores[i]):
+                doc_map[doc].text = doc
+                doc_map[doc].dense_score = float(score)
 
-            for doc, score in zip(bm25_docs[i], bm25_scores[i]):
-                scores_list[i][doc].text = doc
-                scores_list[i][doc].bm25_score = score
+            for doc, score in zip(sparse_docs[i], sparse_scores[i]):
+                doc_map[doc].text = doc
+                doc_map[doc].sparse_score = float(score)
 
-        # Combine the docs and scores into a list of tuples
-        results = []
-        for i in range(len(vicinity_results)):
-            # Get the combined scores
-            result = [(key, value.combine_scores(self.alpha)) for key, value in scores_list[i].items()]
-
-            # Sort the scores
-            result.sort(key=lambda x: x[1], reverse=True)
-
-            # Take the top k results
-            results.append(result[:k])
+            # Combine scores and sort
+            combined = [(doc_id, d_obj.combine_scores(self.alpha)) for doc_id, d_obj in doc_map.items()]
+            top_k = heapq.nlargest(k, combined, key=lambda x: x[1])
+            results.append(top_k)
 
         return results
 
-    def query(
-        self,
-        texts: list[str],
-        k: int = 10,
-        k_reranker: int = 30,
-    ) -> list[list[tuple[str, float]]]:
+    def query(self, texts: list[str], k: int = 10, k_reranker: int = 30) -> QueryResult:
         """
-        Find the nearest neighbors for a list of texts.
+        Query the pipeline.
 
-        :param texts: Texts to query for
-        :param k: The number of most similar items to retrieve.
-        :param k_reranker: The number of items to consider for reranking.
-        :return: For each item in the input, the num most similar items are returned in the form of
-            (NAME, SIMILARITY) tuples.
+        This does the following:
+          - Hybrid search if we have both dense and sparse indexes.
+          - Dense search if we have only have a dense index.
+          - Sparse search if we have only a sparse index.
+          - Reranking if a reranker is provided.
+
+        :param texts: The list of texts to query.
+        :param k: The number of results to return.
+        :param k_reranker: The number of results to consider for reranking.
+        :return: The search results.
         """
-        # Encode the texts and find the nearest neighbors
-        vectors = self.encoder.encode(texts, show_progressbar=True)
-        results = self.vicinity.query(vectors, k_reranker)
+        # Compute dense results if both dense index and encoder are available
+        dense_results = None
+        if self.dense_index is not None and self.encoder is not None:
+            vectors = self.encoder.encode(texts, show_progressbar=True)
+            dense_results = self.dense_index.query(vectors, k_reranker)
 
-        # Convert the distances to similarities
-        results = [[(doc, 1.0 - score) for doc, score in result] for result in results]
+        # Compute sparse results if sparse index is available
+        sparse_results = None
+        if self.sparse_index is not None:
+            tokens = bm25s.tokenize(texts, stopwords="en")
+            sparse_results = self.sparse_index.retrieve(tokens, k=k_reranker, corpus=self.corpus, return_as="tuple")
 
-        # Do bm25 search if alpha < 1 and merge results
-        if self.bm25 is not None and self.alpha < 1.0:
-            query_tokens = bm25s.tokenize(texts, stopwords="en")
-            bm25_results = self.bm25.retrieve(query_tokens, k=k_reranker, corpus=self.corpus, return_as="tuple")
-            results = self._merge_results(results, bm25_results, k=k_reranker)
+        # Hybrid search
+        if dense_results is not None and sparse_results is not None:
+            results = self._merge_results(dense_results, sparse_results, k_reranker)
+        # Dense search
+        elif dense_results is not None:
+            results = dense_results
+        # Sparse search
+        elif sparse_results is not None:
+            # Normalize and partial sort sparse results
+            docs, scores = sparse_results
+            scores = normalize_scores(scores)
+            results = [
+                heapq.nlargest(k_reranker, zip(row_docs, row_scores), key=lambda x: x[1])
+                for row_docs, row_scores in zip(docs, scores)
+            ]
 
-        # Apply reranker if available
+        # Apply the reranker if provided.
         if self.reranker is not None:
             results = self.reranker(texts, results)
 
