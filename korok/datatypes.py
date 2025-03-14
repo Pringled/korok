@@ -1,16 +1,19 @@
 from dataclasses import dataclass
 
 import numpy as np
+from vicinity.datatypes import SimilarityResult
 
-BM25Result = tuple[list[list[str]], np.ndarray]
+SparseResult = tuple[list[list[str]], np.ndarray]
+DenseResult = SimilarityResult
+HybridResult = SimilarityResult
 
 
 @dataclass
 class Document:
     text: str | None = None
-    vicinity_score: float = 0.0
-    bm25_score: float = 0.0
+    dense_score: float = 0.0
+    sparse_score: float = 0.0
 
     def combine_scores(self, alpha: float) -> float:
         """Combine the vicinity and bm25 scores."""
-        return self.vicinity_score * alpha + self.bm25_score * (1 - alpha)
+        return self.dense_score * alpha + self.sparse_score * (1 - alpha)
