@@ -32,7 +32,6 @@ class Pipeline:
         :param reranker: A cross-encoder reranker.
         :param alpha: The alpha value for hybrid search.
         :param corpus: List of documents used for BM25.
-        :raises ValueError: If alpha is not between 0 and 1.
         """
         self.encoder = encoder
         self.dense_index = dense_index
@@ -40,9 +39,6 @@ class Pipeline:
         self.reranker = reranker
         self.alpha = alpha
         self.corpus = corpus
-
-        if not (0.0 <= self.alpha <= 1.0):
-            raise ValueError("Alpha must be between 0 and 1")
 
     @classmethod
     def fit(
@@ -77,9 +73,13 @@ class Pipeline:
         :param **kwargs: Additional args passed to Vicinity.from_vectors_and_items.
         :return: A Pipeline instance.
         :raises ValueError: If neither encoder nor bm25 is provided.
+        :raises ValueError: If alpha is not between 0 and 1.
         """
         if encoder is None and bm25 is False:
             raise ValueError("At least one of encoder or bm25 must be provided.")
+
+        if not (0.0 <= alpha <= 1.0):
+            raise ValueError("Alpha must be between 0 and 1")
 
         # Build a dense vector index using the encoder
         dense_index = None
