@@ -6,6 +6,7 @@ from vicinity.datatypes import SimilarityResult
 SparseResult = tuple[list[list[str]], np.ndarray]
 DenseResult = SimilarityResult
 HybridResult = SimilarityResult
+QueryResult = SimilarityResult
 
 
 @dataclass

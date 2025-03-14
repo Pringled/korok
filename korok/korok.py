@@ -8,7 +8,7 @@ import bm25s
 import numpy as np
 from vicinity import Backend, Metric, Vicinity
 
-from korok.datatypes import DenseResult, Document, HybridResult, SparseResult
+from korok.datatypes import DenseResult, Document, HybridResult, QueryResult, SparseResult
 from korok.rerankers import CrossEncoderReranker
 from korok.utils import Encoder
 
@@ -161,7 +161,7 @@ class Pipeline:
 
         return results_out
 
-    def query(self, texts: list[str], k: int = 10) -> DenseResult | SparseResult | HybridResult:
+    def query(self, texts: list[str], k: int = 10) -> QueryResult:
         """
         Query the pipeline.
 
