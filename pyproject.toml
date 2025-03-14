@@ -27,7 +27,7 @@ dev = [
     "pytest-coverage",
     "ruff",
 ]
-experiments = [
+benchmarks = [
     "datasets",
     "sentence-transformers",
     "pytrec-eval",

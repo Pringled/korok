@@ -3,7 +3,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 from bm25s.utils.beir import evaluate, postprocess_results_for_eval
@@ -19,18 +19,17 @@ logger = logging.getLogger(__name__)
 
 def load_and_prepare_dataset(
     hf_dataset_id: str,
-) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, Dict[str, int]], List[str], Dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, dict[str, int]], list[str], dict[str, str]]:
     """
     Load a NanoBEIR dataset and prepare an ordered corpus and a lookup mapping.
 
-    Returns
-    -------
-        corpus: Mapping of document ID to text.
-        queries: Mapping of query ID to text.
-        qrels: Mapping of query ID to document scores.
-        ordered_corpus_texts: List of texts in corpus order.
-        doc_text_to_id: Mapping from document text to document ID.
-
+    :param hf_dataset_id: The Hugging Face dataset identifier.
+    :return: A tuple containing:
+             - corpus: Mapping of document ID to text.
+             - queries: Mapping of query ID to text.
+             - qrels: Mapping of query ID to document scores.
+             - ordered_corpus_texts: List of texts in corpus order.
+             - doc_text_to_id: Mapping from document text to document ID.
     """
     corpus_ds = load_dataset(hf_dataset_id, "corpus", split="train")
     queries_ds = load_dataset(hf_dataset_id, "queries", split="train")
@@ -38,7 +37,7 @@ def load_and_prepare_dataset(
 
     corpus = {sample["_id"]: sample["text"] for sample in corpus_ds if sample["text"].strip()}
     queries = {sample["_id"]: sample["text"] for sample in queries_ds if sample["text"].strip()}
-    qrels: Dict[str, Dict[str, int]] = {}
+    qrels: dict[str, dict[str, int]] = {}
     for sample in qrels_ds:
         qid = sample["query-id"]
         cid = sample["corpus-id"]
@@ -52,7 +51,7 @@ def load_and_prepare_dataset(
 
 
 def build_hybrid_pipeline(
-    ordered_corpus_texts: List[str],
+    ordered_corpus_texts: list[str],
     encoder: StaticModel | None,
     reranker: CrossEncoderReranker | None,
     alpha_value: float,
@@ -61,18 +60,12 @@ def build_hybrid_pipeline(
     """
     Build and return a retrieval pipeline.
 
-    Args:
-    ----
-        ordered_corpus_texts: List of corpus texts.
-        encoder: Encoder model.
-        reranker: Optional cross-encoder reranker.
-        alpha_value: Alpha value for the pipeline.
-        use_bm25: Whether to use BM25 for sparse retrieval.
-
-    Returns:
-    -------
-        A Pipeline instance configured to use BM25 if use_bm25 is True.
-
+    :param ordered_corpus_texts: List of corpus texts.
+    :param encoder: Encoder model.
+    :param reranker: Optional cross-encoder reranker.
+    :param alpha_value: Alpha value for the pipeline.
+    :param use_bm25: Whether to use BM25 for sparse retrieval.
+    :return: A Pipeline instance configured to use BM25 if use_bm25 is True.
     """
     return Pipeline.fit(
         texts=ordered_corpus_texts,
@@ -85,30 +78,33 @@ def build_hybrid_pipeline(
 
 def retrieve_query_results(
     pipeline: Pipeline,
-    queries: Dict[str, str],
-    doc_text_to_id: Dict[str, str],
+    queries: dict[str, str],
+    doc_text_to_id: dict[str, str],
     k: int,
     k_reranker: int,
-) -> Tuple[List[List[str]], List[List[float]], List[str]]:
+) -> tuple[list[list[str]], list[list[float]], list[str]]:
     """
     Retrieve ranked document IDs and scores for each query.
 
-    Returns
-    -------
-        all_ranked_results: List of ranked document IDs per query.
-        all_scores: List of score lists corresponding to the documents.
-        query_ids: List of query IDs.
-
+    :param pipeline: The Pipeline instance to use for querying.
+    :param queries: Mapping of query IDs to query texts.
+    :param doc_text_to_id: Mapping from document text to document ID.
+    :param k: Number of documents to retrieve (full corpus size).
+    :param k_reranker: Number of top documents to consider for reranking.
+    :return: A tuple containing:
+             - all_ranked_results: List of ranked document IDs per query.
+             - all_scores: List of score lists corresponding to the documents.
+             - query_ids: List of query IDs.
     """
-    all_ranked_results: List[List[str]] = []
-    all_scores: List[List[float]] = []
-    query_ids: List[str] = []
+    all_ranked_results: list[list[str]] = []
+    all_scores: list[list[float]] = []
+    query_ids: list[str] = []
 
     for qid, qtext in queries.items():
         # Query returns a list per query; take the first result.
         hybrid_results = pipeline.query([qtext], k=k, k_reranker=k_reranker)[0]
-        ranked_doc_ids: List[str] = []
-        scores: List[float] = []
+        ranked_doc_ids: list[str] = []
+        scores: list[float] = []
         for doc_text, score in hybrid_results:
             doc_id = doc_text_to_id.get(doc_text)
             if doc_id:
@@ -124,21 +120,19 @@ def retrieve_query_results(
 
 
 def evaluate_results(
-    qrels: Dict[str, Dict[str, int]],
-    all_ranked_results: List[List[str]],
-    all_scores: List[List[float]],
-    query_ids: List[str],
-    k_values: List[int],
-) -> Dict[str, Any]:
-    """
-    Evaluate retrieval results using BEIR evaluation helpers.
+    qrels: dict[str, dict[str, int]],
+    all_ranked_results: list[list[str]],
+    all_scores: list[list[float]],
+    query_ids: list[str],
+    k_values: list[int],
+) -> dict[str, Any]:
+    """Evaluate retrieval results using BEIR evaluation helpers."""
+    # Determine maximum length among score lists.
+    max_len = max(len(scores) for scores in all_scores)
+    # Pad each score list with 0.0 to make them all the same length.
+    padded_scores = [scores + [0.0] * (max_len - len(scores)) for scores in all_scores]
 
-    Returns
-    -------
-        Dictionary of evaluation metrics.
-
-    """
-    results_for_eval = postprocess_results_for_eval(all_ranked_results, np.array(all_scores), query_ids)
+    results_for_eval = postprocess_results_for_eval(all_ranked_results, np.array(padded_scores), query_ids)
     ndcg, _map, recall, precision = evaluate(qrels, results_for_eval, k_values)
     return {"ndcg": ndcg, "map": _map, "recall": recall, "precision": precision}
 
@@ -151,8 +145,18 @@ def main(
     save_path: str,
     use_bm25: bool,
 ) -> None:
-    """Evaluate a retrieval pipeline on multiple NanoBEIR datasets."""
-    dataset_name_to_id: Dict[str, str] = {
+    """
+    Evaluate a retrieval pipeline on multiple NanoBEIR datasets.
+
+    :param encoder_model: Pretrained encoder model name or path (e.g., 'minishlab/potion_retrieval_32M').
+    :param reranker_model: Optional reranker model name or path (e.g., 'BAAI/bge_reranker_v2_m3').
+    :param alpha_value: Alpha value for the pipeline (0 <= alpha <= 1).
+    :param k_reranker: Number of top documents to re-rank.
+    :param save_path: Directory to save results.
+    :param use_bm25: Flag indicating whether BM25 (sparse retrieval) is used for hybrid search.
+    :return: None.
+    """
+    dataset_name_to_id: dict[str, str] = {
         "climatefever": "zeta-alpha-ai/NanoClimateFEVER",
         "dbpedia": "zeta-alpha-ai/NanoDBPedia",
         "fever": "zeta-alpha-ai/NanoFEVER",
@@ -202,8 +206,8 @@ def main(
     encoder = StaticModel.from_pretrained(encoder_model) if encoder_model else None
     reranker = CrossEncoderReranker(reranker_model) if reranker_model else None
 
-    k_values: List[int] = [1, 3, 5, 10, 100]
-    all_metrics: Dict[str, Dict[str, Any]] = {}
+    k_values: list[int] = [1, 3, 5, 10, 100]
+    all_metrics: dict[str, dict[str, Any]] = {}
     total_queries = total_time = total_fit_time = 0.0
     dataset_count = 0
 
@@ -250,10 +254,10 @@ def main(
     avg_fit_time = total_fit_time / dataset_count if dataset_count > 0 else 0.0
 
     # Compute aggregated scores.
-    aggregated_scores: Dict[str, Dict[str, float]] = {}
+    aggregated_scores: dict[str, dict[str, float]] = {}
     for mtype in ["ndcg", "map", "recall", "precision"]:
-        sums: Dict[str, float] = {}
-        counts: Dict[str, int] = {}
+        sums: dict[str, float] = {}
+        counts: dict[str, int] = {}
         for ds_metrics in all_metrics.values():
             if mtype in ds_metrics:
                 for key, val in ds_metrics[mtype].items():
