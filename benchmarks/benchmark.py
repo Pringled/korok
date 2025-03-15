@@ -9,9 +9,11 @@ import numpy as np
 from bm25s.utils.beir import evaluate, postprocess_results_for_eval
 from datasets import load_dataset
 from model2vec import StaticModel
+from sentence_transformers import SentenceTransformer
 
 from korok import Pipeline
 from korok.rerankers import CrossEncoderReranker
+from korok.utils import Encoder
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -52,7 +54,7 @@ def load_and_prepare_dataset(
 
 def build_hybrid_pipeline(
     ordered_corpus_texts: list[str],
-    encoder: StaticModel | None,
+    encoder: Encoder | None,
     reranker: CrossEncoderReranker | None,
     alpha_value: float,
     use_bm25: bool,
@@ -137,13 +139,14 @@ def evaluate_results(
     return {"ndcg": ndcg, "map": _map, "recall": recall, "precision": precision}
 
 
-def main(
+def main(  # noqa: C901
     encoder_model: str | None,
     reranker_model: str | None,
     alpha_value: float,
     k_reranker: int,
     save_path: str,
     use_bm25: bool,
+    overwrite_results: bool,
 ) -> None:
     """
     Evaluate a retrieval pipeline on multiple NanoBEIR datasets.
@@ -154,6 +157,7 @@ def main(
     :param k_reranker: Number of top documents to re-rank.
     :param save_path: Directory to save results.
     :param use_bm25: Flag indicating whether BM25 (sparse retrieval) is used for hybrid search.
+    :param overwrite_results: If False and the save folder already exists, skip evaluation.
     :return: None.
     """
     dataset_name_to_id: dict[str, str] = {
@@ -184,6 +188,11 @@ def main(
     # Append the common suffix.
     save_folder = f"{base_name}_alpha{alpha_value}_kr{k_reranker}"
     output_dir = Path(save_path) / save_folder
+
+    if output_dir.exists() and not overwrite_results:
+        logger.info(f"Output folder '{output_dir}' already exists and overwrite_results is False. Skipping evaluation.")
+        return
+
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Saving results to folder: {output_dir}")
 
@@ -203,8 +212,15 @@ def main(
     logger.info(f"Saved configuration to {config_path}")
 
     # Initialize models.
-    encoder = StaticModel.from_pretrained(encoder_model) if encoder_model else None
-    reranker = CrossEncoderReranker(reranker_model) if reranker_model else None
+    if not encoder_model:
+        encoder = None
+    elif encoder_model == "minishlab/potion-retrieval-32M":
+        # Load using Model2Vec
+        encoder = StaticModel.from_pretrained(encoder_model)
+    else:
+        # Load using SentenceTransformers
+        encoder = SentenceTransformer(encoder_model, trust_remote_code=True, device="cpu")
+    reranker = CrossEncoderReranker(reranker_model, trust_remote_code=True, device="cpu") if reranker_model else None
 
     k_values: list[int] = [1, 3, 5, 10, 100]
     all_metrics: dict[str, dict[str, Any]] = {}
@@ -304,13 +320,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--alpha_value",
         type=float,
-        required=True,
+        default=0.5,
         help="Alpha value for the pipeline (0 <= alpha <= 1).",
     )
     parser.add_argument(
         "--k_reranker",
         type=int,
-        required=True,
+        default=30,
         help="Number of top documents to re-rank.",
     )
     parser.add_argument(
@@ -324,6 +340,12 @@ if __name__ == "__main__":
         action="store_true",
         help="If set, BM25 (sparse retrieval) is used for hybrid search.",
     )
+    parser.add_argument(
+        "--overwrite_results",
+        action="store_true",
+        default=False,
+        help="If set, overwrite results even if the save folder already exists.",
+    )
     args = parser.parse_args()
 
     main(
@@ -333,4 +355,5 @@ if __name__ == "__main__":
         k_reranker=args.k_reranker,
         save_path=args.save_path,
         use_bm25=args.bm25,
+        overwrite_results=args.overwrite_results,
     )
