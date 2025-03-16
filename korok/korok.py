@@ -192,8 +192,11 @@ class Pipeline:
 
         # Compute sparse results if sparse index is available
         sparse_results = None
-        if self.sparse_index is not None:
+        if self.sparse_index and self.corpus:
             tokens = bm25s.tokenize(texts, stopwords=self.stopwords)
+            if k_reranker > len(self.corpus):
+                # If k_reranker is greater than the number of documents in the corpus, set it to the corpus size
+                k_reranker = len(self.corpus)
             sparse_results = self.sparse_index.retrieve(tokens, k=k_reranker, corpus=self.corpus, return_as="tuple")
 
         # Hybrid search
@@ -225,5 +228,6 @@ class Pipeline:
                 reranked_results.append(reranked_result)
             results = reranked_results
 
-        # Return the top k results
-        return results[:k]
+        # Convert outputs and return the top k results
+        results = [[(str(doc), float(score)) for doc, score in row][:k] for row in results]
+        return results
