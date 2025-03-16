@@ -48,17 +48,14 @@ def main(
     """
     save_folder = build_save_folder_name(encoder_model, bm25, reranker_model, alpha_value, k_reranker)
     output_dir = Path(save_path) / save_folder
-    if output_dir.exists() and not overwrite_results:
-        logger.info(f"Output folder '{output_dir}' exists and overwrite_results is False. " "Skipping benchmark.")
-    else:
-        output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Using throughput results folder: {output_dir}")
 
-    config_path = output_dir / "config.json"
-    if config_path.exists():
-        logger.info(f"Using existing configuration from {config_path}")
-    else:
-        logger.info("No existing configuration found; proceeding without it.")
+    # Check if throughput_results.json already exists
+    results_path = output_dir / "throughput_results.json"
+    if results_path.exists() and not overwrite_results:
+        logger.info(f"Throughput results already exist at {results_path}. Skipping benchmark.")
+        return
 
     corpus_texts = load_corpus(dataset_path, dataset_name, dataset_split, dataset_column)
     logger.info(
@@ -94,7 +91,6 @@ def main(
         "num_queries": len(queries),
         "qps": qps,
     }
-    results_path = output_dir / "throughput_results.json"
     save_json(throughput_results, results_path)
     logger.info(f"Saved throughput results to {results_path}")
 
