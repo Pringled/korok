@@ -184,7 +184,7 @@ class Pipeline:
         """
         # Compute dense results if both dense index and encoder are available
         dense_results = None
-        if self.dense_index is not None and self.encoder is not None:
+        if self.dense_index and self.encoder:
             vectors = self.encoder.encode(texts, show_progressbar=True)
             dense_results = self.dense_index.query(vectors, k_reranker)
             # Convert distances to similarities
@@ -200,13 +200,13 @@ class Pipeline:
             sparse_results = self.sparse_index.retrieve(tokens, k=k_reranker, corpus=self.corpus, return_as="tuple")
 
         # Hybrid search
-        if dense_results is not None and sparse_results is not None:
+        if dense_results and sparse_results:
             results = self._merge_results(dense_results, sparse_results, k_reranker)
         # Dense search
-        elif dense_results is not None:
+        elif dense_results:
             results = dense_results
         # Sparse search
-        elif sparse_results is not None:
+        elif sparse_results:
             # Normalize and sort sparse results
             docs, scores = sparse_results
             scores = normalize_scores(scores)
@@ -216,7 +216,7 @@ class Pipeline:
             ]
 
         # Rerank the results
-        if self.reranker is not None:
+        if self.reranker:
             reranked_results = []
             for query, candidates in zip(texts, results):
                 # Extract the candidate documents
