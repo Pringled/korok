@@ -6,6 +6,15 @@ The benchmarks in this directory evaluate the performance and throughput of diff
 - The alpha value for hybrid search is set to 0.5
 - For the throughput benchmarks, the number of queries is set to 100 and the number of documents is set to 10000
 
+For the encoders, the following models were benchmarked
+- [minishlab/potion-retrieval-32M](https://huggingface.co/minishlab/potion-retrieval-32M)
+- [sentence-transformers/all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+- [ibm-granite/granite-embedding-30m-english](https://huggingface.co/ibm-granite/granite-embedding-30m-english)
+
+For the rerankers, the following models were benchmarked:
+- [BAAI/bge-reranker-v2-m3](https://huggingface.co/BAAI/bge-reranker-v2-m3)
+- [cross-encoder/ms-marco-MiniLM-L6-v2](https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2)
+
 ## Results
 
 | Encoder Model | Reranker Model | BM25 | NDCG@10 | MAP@10 | Recall@10 | Precision@10 |
