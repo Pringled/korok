@@ -67,7 +67,7 @@ def build_hybrid_pipeline(
     :param reranker: Optional cross-encoder reranker.
     :param alpha_value: Alpha value for the pipeline.
     :param use_bm25: Whether to use BM25 for sparse retrieval.
-    :return: A Pipeline instance configured to use BM25 if use_bm25 is True.
+    :return: A Pipeline instance configured for hybrid retrieval.
     """
     return Pipeline.fit(
         texts=ordered_corpus_texts,
@@ -128,18 +128,123 @@ def evaluate_results(
     query_ids: list[str],
     k_values: list[int],
 ) -> dict[str, Any]:
-    """Evaluate retrieval results using BEIR evaluation helpers."""
-    # Determine maximum length among score lists.
+    """
+    Evaluate retrieval results using BEIR evaluation helpers.
+
+    :param qrels: Query relevance judgments.
+    :param all_ranked_results: Ranked results for each query.
+    :param all_scores: Scores corresponding to each ranked result.
+    :param query_ids: List of query IDs.
+    :param k_values: List of k values for evaluation.
+    :return: Dictionary containing evaluation metrics.
+    """
     max_len = max(len(scores) for scores in all_scores)
     # Pad each score list with 0.0 to make them all the same length.
     padded_scores = [scores + [0.0] * (max_len - len(scores)) for scores in all_scores]
 
     results_for_eval = postprocess_results_for_eval(all_ranked_results, np.array(padded_scores), query_ids)
-    ndcg, _map, recall, precision = evaluate(qrels, results_for_eval, k_values)
-    return {"ndcg": ndcg, "map": _map, "recall": recall, "precision": precision}
+    ndcg, mean_avg_precision, recall, precision = evaluate(qrels, results_for_eval, k_values)
+    return {"ndcg": ndcg, "mean_avg_precision": mean_avg_precision, "recall": recall, "precision": precision}
 
 
-def main(  # noqa: C901
+def initialize_models(
+    encoder_model: str | None,
+    reranker_model: str | None,
+    device: str | None,
+) -> tuple[Encoder | None, CrossEncoderReranker | None]:
+    """
+    Initialize and return the encoder and reranker models.
+
+    :param encoder_model: Pretrained encoder model name or path.
+    :param reranker_model: Optional reranker model name or path.
+    :param device: Device to use for inference.
+    :return: Tuple of (encoder, reranker).
+    """
+    if not encoder_model:
+        encoder = None
+    elif encoder_model == "minishlab/potion-retrieval-32M":
+        encoder = StaticModel.from_pretrained(encoder_model)
+    else:
+        encoder = SentenceTransformer(encoder_model, trust_remote_code=True, device=device)
+
+    reranker = CrossEncoderReranker(reranker_model, trust_remote_code=True, device=device) if reranker_model else None
+    return encoder, reranker
+
+
+def build_save_folder_name(
+    encoder_model: str | None,
+    use_bm25: bool,
+    reranker_model: str | None,
+    alpha_value: float,
+    k_reranker: int,
+) -> str:
+    """Build the folder name based on the model names, BM25 flag, alpha value, and k_reranker."""
+    encoder_part = encoder_model.split("/")[-1].replace("_", "-") if encoder_model else ""
+    bm25_part = "bm25" if use_bm25 else ""
+    reranker_part = reranker_model.split("/")[-1].replace("_", "-") if reranker_model else ""
+    parts = [part for part in (encoder_part, bm25_part, reranker_part) if part]
+    base_name = "_".join(parts)
+    return f"{base_name}_alpha{alpha_value}_kr{k_reranker}"
+
+
+def save_json(data: Any, path: Path) -> None:
+    """
+    Save data as a JSON file to the specified path.
+
+    :param data: Data to save.
+    :param path: Path to the output file.
+    """
+    with path.open("w") as f:
+        json.dump(data, f, indent=4)
+
+
+def process_dataset(
+    ds_name: str,
+    hf_id: str,
+    encoder: Encoder | None,
+    reranker: CrossEncoderReranker | None,
+    alpha_value: float,
+    use_bm25: bool,
+    k_reranker: int,
+    output_dir: Path,
+    k_values: list[int],
+) -> tuple[dict[str, Any] | None, float, float, int]:
+    """Process a single dataset: load data, build pipeline, query and evaluate results, and save the results to a file."""
+    try:
+        logger.info(f"=== Processing dataset: {ds_name} ===")
+        corpus, queries, qrels, ordered_texts, doc_text_to_id = load_and_prepare_dataset(hf_id)
+        logger.info(f"Loaded corpus with {len(corpus)} documents and {len(queries)} queries.")
+        k = len(ordered_texts)  # Use full corpus size
+
+        fit_start = time.perf_counter()
+        pipeline = build_hybrid_pipeline(ordered_texts, encoder, reranker, alpha_value, use_bm25)
+        fit_time = time.perf_counter() - fit_start
+        logger.info(f"Pipeline fitted in {fit_time:.4f} seconds.")
+
+        query_start = time.perf_counter()
+        all_ranked_results, all_scores, query_ids = retrieve_query_results(
+            pipeline, queries, doc_text_to_id, k, k_reranker
+        )
+        query_time = time.perf_counter() - query_start
+        logger.info(f"Retrieved results for {len(query_ids)} queries in {query_time:.4f} seconds.")
+
+        qps = len(query_ids) / query_time if query_time > 0 else 0.0
+
+        metrics = evaluate_results(qrels, all_ranked_results, all_scores, query_ids, k_values)
+        metrics["qps"] = qps
+        metrics["pipeline_fit_time"] = fit_time
+
+        results_path = output_dir / f"{ds_name}_results.json"
+        save_json(metrics, results_path)
+        logger.info(f"Saved results for {ds_name} to {results_path}")
+
+        return metrics, fit_time, query_time, len(query_ids)
+    except Exception as e:
+        logger.exception(f"Error processing {ds_name}: {e}")
+        return None, 0.0, 0.0, 0
+
+
+def main(
     encoder_model: str | None,
     reranker_model: str | None,
     alpha_value: float,
@@ -152,13 +257,13 @@ def main(  # noqa: C901
     """
     Evaluate a retrieval pipeline on multiple NanoBEIR datasets.
 
-    :param encoder_model: Pretrained encoder model name or path (e.g., 'minishlab/potion_retrieval_32M').
-    :param reranker_model: Optional reranker model name or path (e.g., 'BAAI/bge_reranker_v2_m3').
+    :param encoder_model: Pretrained encoder model name or path.
+    :param reranker_model: Optional reranker model name or path.
     :param alpha_value: Alpha value for the pipeline (0 <= alpha <= 1).
     :param k_reranker: Number of top documents to re-rank.
     :param save_path: Directory to save results.
-    :param use_bm25: Flag indicating whether BM25 (sparse retrieval) is used for hybrid search.
-    :param overwrite_results: If False and the save folder already exists, skip evaluation.
+    :param use_bm25: Whether BM25 (sparse retrieval) is used.
+    :param overwrite_results: If False and the save folder exists, skip evaluation.
     :param device: Device to use for inference.
     """
     dataset_name_to_id: dict[str, str] = {
@@ -177,17 +282,11 @@ def main(  # noqa: C901
         "touche2020": "zeta-alpha-ai/NanoTouche2020",
     }
 
-    # Build parts of the folder name.
-    encoder_part = encoder_model.split("/")[-1].replace("_", "-") if encoder_model else ""
-    bm25_part = "bm25" if use_bm25 else ""
-    reranker_part = reranker_model.split("/")[-1].replace("_", "-") if reranker_model else ""
+    # Initialize models.
+    encoder, reranker = initialize_models(encoder_model, reranker_model, device)
 
-    # Only include non-empty parts.
-    parts = [part for part in (encoder_part, bm25_part, reranker_part) if part]
-    base_name = "_".join(parts)
-
-    # Append the common suffix.
-    save_folder = f"{base_name}_alpha{alpha_value}_kr{k_reranker}"
+    # Build output directory based on models and parameters.
+    save_folder = build_save_folder_name(encoder_model, use_bm25, reranker_model, alpha_value, k_reranker)
     output_dir = Path(save_path) / save_folder
 
     if output_dir.exists() and not overwrite_results:
@@ -197,82 +296,46 @@ def main(  # noqa: C901
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Saving results to folder: {output_dir}")
 
-    # Save configuration.
+    # Save configuration, now including the 'device'
     config = {
         "encoder_model": encoder_model,
         "reranker_model": reranker_model,
         "alpha_value": alpha_value,
         "k_reranker": k_reranker,
         "bm25": use_bm25,
+        "device": device,
         "output_dir": str(output_dir),
         "dataset_name_to_id": dataset_name_to_id,
     }
     config_path = output_dir / "config.json"
-    with config_path.open("w") as f:
-        json.dump(config, f, indent=4)
+    save_json(config, config_path)
     logger.info(f"Saved configuration to {config_path}")
-
-    # Initialize models.
-    if not encoder_model:
-        encoder = None
-    elif encoder_model == "minishlab/potion-retrieval-32M":
-        # Load using Model2Vec
-        encoder = StaticModel.from_pretrained(encoder_model)
-    else:
-        encoder = SentenceTransformer(encoder_model, trust_remote_code=True, device=device)
-
-    reranker = CrossEncoderReranker(reranker_model, trust_remote_code=True, device=device) if reranker_model else None
 
     k_values: list[int] = [1, 3, 5, 10, 100]
     all_metrics: dict[str, dict[str, Any]] = {}
-    total_queries = total_time = total_fit_time = 0.0
+    total_queries = 0
+    total_query_time = 0.0
+    total_fit_time = 0.0
     dataset_count = 0
 
+    # Process each dataset.
     for ds_name, hf_id in dataset_name_to_id.items():
-        try:
-            logger.info(f"=== Processing dataset: {ds_name} ===")
-            corpus, queries, qrels, ordered_texts, doc_text_to_id = load_and_prepare_dataset(hf_id)
-            logger.info(f"Loaded corpus with {len(corpus)} documents and {len(queries)} queries.")
-            k = len(ordered_texts)  # Use full corpus size
-
-            fit_start = time.time()
-            pipeline = build_hybrid_pipeline(ordered_texts, encoder, reranker, alpha_value, use_bm25)
-            fit_time = time.time() - fit_start
-            logger.info(f"Pipeline fitted in {fit_time:.4f} seconds.")
+        metrics, fit_time, query_time, num_queries = process_dataset(
+            ds_name, hf_id, encoder, reranker, alpha_value, use_bm25, k_reranker, output_dir, k_values
+        )
+        if metrics is not None:
+            all_metrics[ds_name] = metrics
             total_fit_time += fit_time
-
-            start_time = time.time()
-            all_ranked_results, all_scores, query_ids = retrieve_query_results(
-                pipeline, queries, doc_text_to_id, k, k_reranker
-            )
-            elapsed = time.time() - start_time
-            logger.info(f"Retrieved results for {len(query_ids)} queries in {elapsed:.4f} seconds.")
-            qps = len(query_ids) / elapsed if elapsed > 0 else 0.0
-
-            total_queries += len(query_ids)
-            total_time += elapsed
+            total_query_time += query_time
+            total_queries += num_queries
             dataset_count += 1
 
-            metrics = evaluate_results(qrels, all_ranked_results, all_scores, query_ids, k_values)
-            metrics["qps"] = qps
-            metrics["pipeline_fit_time"] = fit_time
-            all_metrics[ds_name] = metrics
-            logger.info(f"Results for {ds_name}: {metrics}")
-
-            results_path = output_dir / f"{ds_name}_results.json"
-            with results_path.open("w") as f:
-                json.dump(metrics, f, indent=4)
-            logger.info(f"Saved results for {ds_name}.")
-
-        except Exception as e:
-            logger.error(f"Error processing {ds_name}: {e}")
-
-    overall_qps = total_queries / total_time if total_time > 0 else 0.0
+    overall_qps = total_queries / total_query_time if total_query_time > 0 else 0.0
     avg_fit_time = total_fit_time / dataset_count if dataset_count > 0 else 0.0
 
-    # Compute aggregated scores.
+    # Aggregate scores across datasets.
     aggregated_scores: dict[str, dict[str, float]] = {}
-    for mtype in ["ndcg", "map", "recall", "precision"]:
+    for mtype in ["ndcg", "mean_avg_precision", "recall", "precision"]:
         sums: dict[str, float] = {}
         counts: dict[str, int] = {}
         for ds_metrics in all_metrics.values():
@@ -294,13 +357,12 @@ def main(  # noqa: C901
         "throughput": {
             "qps": overall_qps,
             "pipeline_fit_time": avg_fit_time,
-            "total_time": total_time,
+            "total_query_time": total_query_time,
             "total_queries": total_queries,
         },
     }
     overall_save_path = output_dir / "overall_results.json"
-    with overall_save_path.open("w") as f:
-        json.dump(overall_eval, f, indent=4)
+    save_json(overall_eval, overall_save_path)
     logger.info(f"Saved overall results to {overall_save_path}")
 
 
@@ -310,13 +372,13 @@ if __name__ == "__main__":
         "--encoder_model",
         type=str,
         default=None,
-        help="Pretrained encoder model name or path (e.g., 'minishlab/potion_retrieval_32M').",
+        help="Pretrained encoder model name or path (e.g., 'minishlab/potion-retrieval-32M').",
     )
     parser.add_argument(
         "--reranker_model",
         type=str,
         default=None,
-        help="Optional reranker model name or path (e.g., 'BAAI/bge_reranker_v2_m3').",
+        help="Optional reranker model name or path (e.g., 'BAAI/bge-reranker-v2-m3').",
     )
     parser.add_argument(
         "--alpha_value",
