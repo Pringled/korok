@@ -35,7 +35,7 @@ pipeline = Pipeline.fit(texts=texts, encoder=encoder)
 
 # Query for nearest neighbors
 query_text = "sword"
-results = pipeline.query([query_text], k=3)
+results = pipeline.query(query_text, k=3)
 ```
 
 ### Sparse Vector Search
@@ -52,7 +52,7 @@ pipeline = Pipeline.fit(texts=texts, use_bm25=True)
 
 # Query for nearest neighbors
 query_text = "sword"
-results = pipeline.query([query_text], k=3)
+results = pipeline.query(query_text, k=3)
 ```
 
 ### Hybrid Vector Search
@@ -71,7 +71,7 @@ pipeline = Pipeline.fit(texts=texts, encoder=encoder, use_bm25=True)
 
 # Query for nearest neighbors
 query_text = "sword"
-results = pipeline.query([query_text], k=3)
+results = pipeline.query(query_text, k=3)
 ```
 
 ### Rerankers
@@ -92,5 +92,5 @@ pipeline = Pipeline.fit(texts=texts, encoder=encoder, use_bm25=True, reranker=re
 
 # Query for nearest neighbors
 query_text = "sword"
-results = pipeline.query([query_text], k=3)
+results = pipeline.query(query_text, k=3)
 ```
