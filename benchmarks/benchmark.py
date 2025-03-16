@@ -71,7 +71,7 @@ def build_hybrid_pipeline(
     return Pipeline.fit(
         texts=ordered_corpus_texts,
         encoder=encoder,
-        bm25=use_bm25,
+        use_bm25=use_bm25,
         reranker=reranker,
         alpha=alpha_value,
     )
