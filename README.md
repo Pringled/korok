@@ -27,7 +27,7 @@ from model2vec import StaticModel
 from korok import Pipeline
 
 # Create texts to encode
-texts = ["triforce", "master sword", "hylian shield", "boomerang", "hookshot"]
+texts = ["triforce", "master sword", "hylian shield", "boomerang", "hookshot", "spear"]
 
 # Initialize the encoder and pipeline
 encoder = StaticModel.from_pretrained("minishlab/potion-retrieval-32M")
@@ -45,7 +45,7 @@ The following code snippet shows how to use Korok for sparse vector search:
 from korok import Pipeline
 
 # Create texts to encode
-texts = ["triforce", "master sword", "hylian shield", "boomerang", "hookshot"]
+texts = ["triforce", "master sword", "hylian shield", "boomerang", "hookshot", "spear"]
 
 # Initialize the encoder and pipeline
 pipeline = Pipeline.fit(texts=texts, use_bm25=True)
