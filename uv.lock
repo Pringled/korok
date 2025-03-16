@@ -15,6 +15,19 @@ wheels = [
 ]
 
 [[package]]
+name = "bm25s"
+version = "0.2.7.post1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0e/c0/d04b67ef58ff252a93b78f5f42d095837e6a7786fa2e093cc1016dfa970e/bm25s-0.2.7.post1.tar.gz", hash = "sha256:9ff5ec87593f05a77bcf44399ba8eaf77f39eb26cdad96256a536916cb352250", size = 57655 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/85/dd/54c28242667bfb93adc9f8928db6640f80b9c13c0d102bd0a1c84d453fcb/bm25s-0.2.7.post1-py3-none-any.whl", hash = "sha256:5fdcc151c15df39ba64b135f3eb9ba56e8759700b517513581ea4904644d6b09", size = 53640 },
+]
+
+[[package]]
 name = "certifi"
 version = "2024.8.30"
 source = { registry = "https://pypi.org/simple" }
@@ -333,17 +346,14 @@ name = "korok"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "model2vec" },
-    { name = "vicinity" },
-]
-
-[package.optional-dependencies]
-all = [
+    { name = "bm25s" },
     { name = "model2vec" },
     { name = "sentence-transformers" },
     { name = "transformers" },
     { name = "vicinity" },
 ]
+
+[package.optional-dependencies]
 dev = [
     { name = "ipython" },
     { name = "mypy" },
@@ -352,27 +362,20 @@ dev = [
     { name = "pytest-coverage" },
     { name = "ruff" },
 ]
-rerankers = [
-    { name = "sentence-transformers" },
-    { name = "transformers" },
-]
 
 [package.metadata]
 requires-dist = [
+    { name = "bm25s" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "model2vec" },
-    { name = "model2vec", marker = "extra == 'all'" },
     { name = "mypy", marker = "extra == 'dev'" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-coverage", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "sentence-transformers", marker = "extra == 'all'" },
-    { name = "sentence-transformers", marker = "extra == 'rerankers'" },
-    { name = "transformers", marker = "extra == 'all'", specifier = "<4.47.0" },
-    { name = "transformers", marker = "extra == 'rerankers'", specifier = "<4.47.0" },
+    { name = "sentence-transformers" },
+    { name = "transformers", specifier = "<4.47.0" },
     { name = "vicinity" },
-    { name = "vicinity", marker = "extra == 'all'" },
 ]
 
 [[package]]

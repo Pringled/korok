@@ -1,6 +1,9 @@
 from typing import Any, Protocol, Sequence
 
 import numpy as np
+from vicinity import Metric
+
+from korok.datatypes import DenseResult
 
 
 class Encoder(Protocol):
@@ -28,3 +31,19 @@ def normalize_scores(scores: np.ndarray) -> np.ndarray:
     denom = max_vals - min_vals
     denom[denom == 0] = 1e-9
     return (scores - min_vals) / denom
+
+
+def convert_distances_to_similarities(dense_results: DenseResult, metric: Metric) -> DenseResult:
+    """Convert dense results from distances to similarity scores based on the metric."""
+
+    def convert_score(score: float) -> float:
+        if metric == Metric.COSINE:
+            return 1.0 - score
+        elif metric == Metric.INNER_PRODUCT:
+            return score
+        elif metric == Metric.EUCLIDEAN:
+            return 1.0 / (1.0 + score)
+        else:
+            raise ValueError(f"Unsupported metric: {metric}")
+
+    return [[(doc, convert_score(score)) for doc, score in row] for row in dense_results]

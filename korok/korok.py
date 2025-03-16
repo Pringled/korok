@@ -10,7 +10,7 @@ from vicinity import Backend, Metric, Vicinity
 
 from korok.datatypes import DenseResult, Document, HybridResult, QueryResult, SparseResult
 from korok.rerankers import CrossEncoderReranker
-from korok.utils import Encoder, normalize_scores
+from korok.utils import Encoder, convert_distances_to_similarities, normalize_scores
 
 
 class Pipeline:
@@ -20,6 +20,7 @@ class Pipeline:
         dense_index: Vicinity | None = None,
         sparse_index: bm25s.BM25 | None = None,
         reranker: CrossEncoderReranker | None = None,
+        distance_metric: Metric = Metric.COSINE,
         alpha: float = 0.5,
         corpus: list[str] | None = None,
     ) -> None:
@@ -30,6 +31,7 @@ class Pipeline:
         :param dense_index: A dense vector index using the provided encoder.
         :param sparse_index: A sparse vector index using BM25.
         :param reranker: A cross-encoder reranker.
+        :param distance_metric: The distance metric for the dense vector index.
         :param alpha: The alpha value for hybrid search.
         :param corpus: List of documents used for BM25.
         """
@@ -37,6 +39,7 @@ class Pipeline:
         self.dense_index = dense_index
         self.sparse_index = sparse_index
         self.reranker = reranker
+        self.distance_metric = distance_metric
         self.alpha = alpha
         self.corpus = corpus
 
@@ -74,6 +77,7 @@ class Pipeline:
         :return: A Pipeline instance.
         :raises ValueError: If neither encoder nor bm25 is provided.
         :raises ValueError: If alpha is not between 0 and 1.
+        :raises ValueError: If the distance metric is not supported for hybrid search.
         """
         if encoder is None and bm25 is False:
             raise ValueError("At least one of encoder or bm25 must be provided.")
@@ -100,11 +104,20 @@ class Pipeline:
             tokens = bm25s.tokenize(texts, stopwords=stopwords)
             sparse_index.index(tokens)
 
+        # Check if the distance metric is supported for hybrid search
+        if dense_index and sparse_index:
+            if distance_metric not in [Metric.COSINE, Metric.INNER_PRODUCT, Metric.EUCLIDEAN]:
+                raise ValueError(
+                    "Unsupported metric for hybrid search. Use Metric.COSINE, "
+                    "Metric.INNER_PRODUCT, or Metric.EUCLIDEAN."
+                )
+
         return cls(
             encoder=encoder,
             dense_index=dense_index,
             sparse_index=sparse_index,
             reranker=reranker,
+            distance_metric=distance_metric,
             alpha=alpha,
             corpus=texts,
         )
@@ -151,7 +164,7 @@ class Pipeline:
 
         return results
 
-    def query(self, texts: list[str], k: int = 10) -> QueryResult:
+    def query(self, texts: list[str], k: int = 10, k_reranker: int = 30) -> QueryResult:
         """
         Query the pipeline.
 
@@ -163,38 +176,42 @@ class Pipeline:
 
         :param texts: The list of texts to query.
         :param k: The number of results to return.
+        :param k_reranker: The number of results to consider for reranking.
         :return: The search results.
         """
         # Compute dense results if both dense index and encoder are available
         dense_results = None
         if self.dense_index is not None and self.encoder is not None:
             vectors = self.encoder.encode(texts, show_progressbar=True)
-            dense_results = self.dense_index.query(vectors, k)
+            dense_results = self.dense_index.query(vectors, k_reranker)
+            # Convert distances to similarities
+            dense_results = convert_distances_to_similarities(dense_results, self.distance_metric)
 
         # Compute sparse results if sparse index is available
         sparse_results = None
         if self.sparse_index is not None:
             tokens = bm25s.tokenize(texts, stopwords="en")
-            sparse_results = self.sparse_index.retrieve(tokens, k=k, corpus=self.corpus, return_as="tuple")
+            sparse_results = self.sparse_index.retrieve(tokens, k=k_reranker, corpus=self.corpus, return_as="tuple")
 
         # Hybrid search
         if dense_results is not None and sparse_results is not None:
-            results = self._merge_results(dense_results, sparse_results, k)
+            results = self._merge_results(dense_results, sparse_results, k_reranker)
         # Dense search
         elif dense_results is not None:
             results = dense_results
         # Sparse search
         elif sparse_results is not None:
-            # Normalize and partial sort sparse results
+            # Normalize and sort sparse results
             docs, scores = sparse_results
             scores = normalize_scores(scores)
             results = [
-                heapq.nlargest(k, zip(row_docs, row_scores), key=lambda x: x[1])
+                heapq.nlargest(k_reranker, zip(row_docs, row_scores), key=lambda x: x[1])
                 for row_docs, row_scores in zip(docs, scores)
             ]
 
-        # Apply the reranker if provided.
+        # Apply the reranker if provided
         if self.reranker is not None:
             results = self.reranker(texts, results)
 
-        return results
+        # Return the top k results
+        return results[:k]

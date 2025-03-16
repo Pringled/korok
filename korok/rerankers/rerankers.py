@@ -1,18 +1,33 @@
-from typing import Sequence
+from typing import Any, Sequence
 
 from sentence_transformers import CrossEncoder
 
 
 class CrossEncoderReranker:
-    def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2", max_length: int = 512) -> None:
+    def __init__(
+        self,
+        model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        max_length: int | None = None,
+        trust_remote_code: bool = False,
+        device: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize the CrossEncoder reranker.
 
         :param model_name: The name of the pre-trained cross-encoder model.
         :param max_length: The maximum sequence length for the cross-encoder.
+        :param trust_remote_code: A boolean indicating whether to trust remote code.
+        :param device: The device to use for inference.
+        :param **kwargs: Additional keyword arguments.
         """
-        self.cross_encoder = CrossEncoder(model_name)
-        self.cross_encoder.max_length = max_length
+        self.cross_encoder = CrossEncoder(
+            model_name,
+            max_length=max_length,  # type: ignore[arg-type]
+            trust_remote_code=trust_remote_code,
+            device=device,
+            **kwargs,
+        )
 
     def __call__(
         self,
