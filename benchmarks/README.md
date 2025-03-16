@@ -4,6 +4,7 @@ The benchmarks in this directory evaluate the performance and throughput of diff
 - The throughput benchmarks were all run on CPU
 - The K value for the reranker is set to 30
 - The alpha value for hybrid search is set to 0.5
+- For the throughput benchmarks, the number of queries is set to 100 and the number of documents is set to 10000
 
 ## Results
 
@@ -47,7 +48,7 @@ python -m benchmarks.benchmark_performance --encoder-model "minishlab/potion-ret
 ```
 
 ```bash
-python -m benchmarks.benchmark_throughput --encoder-model "minishlab/potion-retrieval-32M" --bm25 --reranker-model "cross-encoder/ms-marco-MiniLM-L6-v2" --save-path "./results" --device "cpu" --max-samples 10000 --num-queries 100
+python -m benchmarks.benchmark_throughput --encoder-model "minishlab/potion-retrieval-32M" --bm25 --reranker-model "cross-encoder/ms-marco-MiniLM-L6-v2" --save-path "./results" --device "cpu" --max-documents 10000 --num-queries 100
 ```
 
 Then, the results table can be printed by running the following command:

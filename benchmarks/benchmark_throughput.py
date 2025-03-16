@@ -9,6 +9,8 @@ from datasets import load_dataset
 from benchmarks.utils import build_save_folder_name, initialize_models, save_json
 from korok import Pipeline
 
+random.seed(42)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ def main(
     overwrite_results: bool,
     device: str | None,
     num_queries: int,
-    max_samples: int | None,
+    max_documents: int | None,
     dataset_path: str,
     dataset_name: str,
     dataset_split: str,
@@ -63,9 +65,9 @@ def main(
         f"Loaded corpus '{dataset_name}' from '{dataset_path}' split '{dataset_split}' "
         f"with {len(corpus_texts)} texts."
     )
-    if max_samples is not None:
-        corpus_texts = corpus_texts[:max_samples]
-        logger.info(f"Capped corpus to {len(corpus_texts)} samples due to max_samples parameter.")
+    if max_documents is not None:
+        corpus_texts = corpus_texts[:max_documents]
+        logger.info(f"Capped corpus to {len(corpus_texts)} documents due to max_documents parameter.")
 
     encoder, reranker = initialize_models(encoder_model, reranker_model, device)
     logger.info("Fitting pipeline...")
@@ -75,7 +77,6 @@ def main(
     logger.info(f"Pipeline fitted in {fit_time:.4f} seconds.")
 
     num_queries = min(num_queries, len(corpus_texts))
-    random.seed(42)
     queries = random.sample(corpus_texts, num_queries)
     logger.info(f"Selected {len(queries)} queries for throughput testing.")
 
@@ -121,7 +122,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--device", type=str, default=None, help="Device for inference (e.g., 'cpu', 'cuda', 'mps').")
     parser.add_argument("--num-queries", type=int, default=100, help="Number of queries for throughput test.")
-    parser.add_argument("--max-samples", type=int, default=None, help="Cap dataset to max number of samples.")
+    parser.add_argument("--max-documents", type=int, default=None, help="Cap dataset to max number of documents.")
     parser.add_argument("--dataset-path", type=str, default="wikitext", help="Dataset path (default: 'wikitext').")
     parser.add_argument(
         "--dataset-name", type=str, default="wikitext-103-raw-v1", help="Dataset name (default: 'wikitext-103-raw-v1')."
@@ -140,7 +141,7 @@ if __name__ == "__main__":
         overwrite_results=args.overwrite_results,
         device=args.device,
         num_queries=args.num_queries,
-        max_samples=args.max_samples,
+        max_documents=args.max_documents,
         dataset_path=args.dataset_path,
         dataset_name=args.dataset_name,
         dataset_split=args.dataset_split,
