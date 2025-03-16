@@ -6,10 +6,10 @@ from typing import Any, DefaultDict
 
 import bm25s
 import numpy as np
+from sentence_transformers import CrossEncoder
 from vicinity import Backend, Metric, Vicinity
 
 from korok.datatypes import DenseResult, Document, HybridResult, QueryResult, SparseResult
-from korok.rerankers import CrossEncoderReranker
 from korok.utils import Encoder, convert_distances_to_similarities, normalize_scores
 
 
@@ -19,10 +19,11 @@ class Pipeline:
         encoder: Encoder | None = None,
         dense_index: Vicinity | None = None,
         sparse_index: bm25s.BM25 | None = None,
-        reranker: CrossEncoderReranker | None = None,
+        reranker: CrossEncoder | None = None,
         distance_metric: Metric = Metric.COSINE,
         alpha: float = 0.5,
         corpus: list[str] | None = None,
+        stopwords: list[str] | None = None,
     ) -> None:
         """
         Initialize a Pipeline instance.
@@ -34,6 +35,7 @@ class Pipeline:
         :param distance_metric: The distance metric for the dense vector index.
         :param alpha: The alpha value for hybrid search.
         :param corpus: List of documents used for BM25.
+        :param stopwords: Stopwords for BM25 tokenization.
         """
         self.encoder = encoder
         self.dense_index = dense_index
@@ -42,14 +44,15 @@ class Pipeline:
         self.distance_metric = distance_metric
         self.alpha = alpha
         self.corpus = corpus
+        self.stopwords = stopwords
 
     @classmethod
     def fit(
         cls,
         texts: list[str],
         encoder: Encoder | None = None,
-        bm25: bool = False,
-        reranker: CrossEncoderReranker | None = None,
+        use_bm25: bool = False,
+        reranker: CrossEncoder | None = None,
         backend_type: Backend = Backend.BASIC,
         distance_metric: Metric = Metric.COSINE,
         alpha: float = 0.5,
@@ -60,13 +63,13 @@ class Pipeline:
         Fit a pipeline on a corpus of documents.
 
         - If an encoder is provided, build a dense vector index using the encoder.
-        - If bm25 is True, build a sparse vector index using BM25.
+        - If use_bm25 is True, build a sparse vector index using BM25.
         - If both are provided, build a hybrid index.
         - If a reranker is provided, rerank the results for each query.
 
         :param texts: The corpus of documents to index.
         :param encoder: An encoder for dense vector search.
-        :param bm25: A bool indicating whether to build a BM25 index for sparse vector search.
+        :param use_bm25: A bool indicating whether to build a BM25 index for sparse vector search.
         :param reranker: A cross-encoder reranker.
         :param backend_type: The backend type for the dense vector index.
         :param distance_metric: The distance metric for the dense vector index.
@@ -79,7 +82,7 @@ class Pipeline:
         :raises ValueError: If alpha is not between 0 and 1.
         :raises ValueError: If the distance metric is not supported for hybrid search.
         """
-        if encoder is None and bm25 is False:
+        if encoder is None and use_bm25 is False:
             raise ValueError("At least one of encoder or bm25 must be provided.")
 
         if not (0.0 <= alpha <= 1.0):
@@ -99,7 +102,7 @@ class Pipeline:
 
         # Build a sparse vector index using BM25
         sparse_index = None
-        if bm25:
+        if use_bm25:
             sparse_index = bm25s.BM25()
             tokens = bm25s.tokenize(texts, stopwords=stopwords)
             sparse_index.index(tokens)
@@ -190,7 +193,7 @@ class Pipeline:
         # Compute sparse results if sparse index is available
         sparse_results = None
         if self.sparse_index is not None:
-            tokens = bm25s.tokenize(texts, stopwords="en")
+            tokens = bm25s.tokenize(texts, stopwords=self.stopwords)
             sparse_results = self.sparse_index.retrieve(tokens, k=k_reranker, corpus=self.corpus, return_as="tuple")
 
         # Hybrid search
@@ -209,9 +212,18 @@ class Pipeline:
                 for row_docs, row_scores in zip(docs, scores)
             ]
 
-        # Apply the reranker if provided
+        # Rerank the results
         if self.reranker is not None:
-            results = self.reranker(texts, results)
+            reranked_results = []
+            for query, candidates in zip(texts, results):
+                # Extract the candidate documents
+                documents = [document for document, _ in candidates]
+                # Rerank the documents
+                reranked_documents = self.reranker.rank(query, documents, top_k=k_reranker, return_documents=True)
+                # Convert ranked output into a list of (document, score) tuples.
+                reranked_result = [(str(item["text"]), float(item["score"])) for item in reranked_documents]
+                reranked_results.append(reranked_result)
+            results = reranked_results
 
         # Return the top k results
         return results[:k]
