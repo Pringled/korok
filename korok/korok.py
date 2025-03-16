@@ -6,10 +6,10 @@ from typing import Any, DefaultDict
 
 import bm25s
 import numpy as np
+from sentence_transformers import CrossEncoder
 from vicinity import Backend, Metric, Vicinity
 
 from korok.datatypes import DenseResult, Document, HybridResult, QueryResult, SparseResult
-from korok.rerankers import CrossEncoderReranker
 from korok.utils import Encoder, convert_distances_to_similarities, normalize_scores
 
 
@@ -19,7 +19,7 @@ class Pipeline:
         encoder: Encoder | None = None,
         dense_index: Vicinity | None = None,
         sparse_index: bm25s.BM25 | None = None,
-        reranker: CrossEncoderReranker | None = None,
+        reranker: CrossEncoder | None = None,
         distance_metric: Metric = Metric.COSINE,
         alpha: float = 0.5,
         corpus: list[str] | None = None,
@@ -49,7 +49,7 @@ class Pipeline:
         texts: list[str],
         encoder: Encoder | None = None,
         bm25: bool = False,
-        reranker: CrossEncoderReranker | None = None,
+        reranker: CrossEncoder | None = None,
         backend_type: Backend = Backend.BASIC,
         distance_metric: Metric = Metric.COSINE,
         alpha: float = 0.5,
@@ -209,9 +209,18 @@ class Pipeline:
                 for row_docs, row_scores in zip(docs, scores)
             ]
 
-        # Apply the reranker if provided
+        # Rerank the results
         if self.reranker is not None:
-            results = self.reranker(texts, results)
+            reranked_results = []
+            for query, candidates in zip(texts, results):
+                # Extract the candidate documents
+                documents = [document for document, _ in candidates]
+                # Rerank the documents
+                reranked_documents = self.reranker.rank(query, documents, top_k=k_reranker, return_documents=True)
+                # Convert ranked output into a list of (document, score) tuples.
+                reranked_result = [(str(item["text"]), float(item["score"])) for item in reranked_documents]
+                reranked_results.append(reranked_result)
+            results = reranked_results
 
         # Return the top k results
         return results[:k]

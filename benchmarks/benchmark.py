@@ -9,10 +9,9 @@ import numpy as np
 from bm25s.utils.beir import evaluate, postprocess_results_for_eval
 from datasets import load_dataset
 from model2vec import StaticModel
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from korok import Pipeline
-from korok.rerankers import CrossEncoderReranker
 from korok.utils import Encoder
 
 logging.basicConfig(level=logging.INFO)
@@ -55,7 +54,7 @@ def load_and_prepare_dataset(
 def build_hybrid_pipeline(
     ordered_corpus_texts: list[str],
     encoder: Encoder | None,
-    reranker: CrossEncoderReranker | None,
+    reranker: CrossEncoder | None,
     alpha_value: float,
     use_bm25: bool,
 ) -> Pipeline:
@@ -151,7 +150,7 @@ def initialize_models(
     encoder_model: str | None,
     reranker_model: str | None,
     device: str | None,
-) -> tuple[Encoder | None, CrossEncoderReranker | None]:
+) -> tuple[Encoder | None, CrossEncoder | None]:
     """
     Initialize and return the encoder and reranker models.
 
@@ -167,7 +166,7 @@ def initialize_models(
     else:
         encoder = SentenceTransformer(encoder_model, trust_remote_code=True, device=device)
 
-    reranker = CrossEncoderReranker(reranker_model, trust_remote_code=True, device=device) if reranker_model else None
+    reranker = CrossEncoder(reranker_model, trust_remote_code=True, device=device) if reranker_model else None
     return encoder, reranker
 
 
@@ -202,7 +201,7 @@ def process_dataset(
     ds_name: str,
     hf_id: str,
     encoder: Encoder | None,
-    reranker: CrossEncoderReranker | None,
+    reranker: CrossEncoder | None,
     alpha_value: float,
     use_bm25: bool,
     k_reranker: int,
