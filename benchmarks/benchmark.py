@@ -147,6 +147,7 @@ def main(  # noqa: C901
     save_path: str,
     use_bm25: bool,
     overwrite_results: bool,
+    device: str | None,
 ) -> None:
     """
     Evaluate a retrieval pipeline on multiple NanoBEIR datasets.
@@ -158,7 +159,7 @@ def main(  # noqa: C901
     :param save_path: Directory to save results.
     :param use_bm25: Flag indicating whether BM25 (sparse retrieval) is used for hybrid search.
     :param overwrite_results: If False and the save folder already exists, skip evaluation.
-    :return: None.
+    :param device: Device to use for inference.
     """
     dataset_name_to_id: dict[str, str] = {
         "climatefever": "zeta-alpha-ai/NanoClimateFEVER",
@@ -218,9 +219,9 @@ def main(  # noqa: C901
         # Load using Model2Vec
         encoder = StaticModel.from_pretrained(encoder_model)
     else:
-        # Load using SentenceTransformers
-        encoder = SentenceTransformer(encoder_model, trust_remote_code=True, device="cpu")
-    reranker = CrossEncoderReranker(reranker_model, trust_remote_code=True, device="cpu") if reranker_model else None
+        encoder = SentenceTransformer(encoder_model, trust_remote_code=True, device=device)
+
+    reranker = CrossEncoderReranker(reranker_model, trust_remote_code=True, device=device) if reranker_model else None
 
     k_values: list[int] = [1, 3, 5, 10, 100]
     all_metrics: dict[str, dict[str, Any]] = {}
@@ -346,6 +347,12 @@ if __name__ == "__main__":
         default=False,
         help="If set, overwrite results even if the save folder already exists.",
     )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Device to use for inference.",
+    )
     args = parser.parse_args()
 
     main(
@@ -356,4 +363,5 @@ if __name__ == "__main__":
         save_path=args.save_path,
         use_bm25=args.bm25,
         overwrite_results=args.overwrite_results,
+        device=args.device,
     )

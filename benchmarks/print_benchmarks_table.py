@@ -32,11 +32,11 @@ def generate_markdown_row(config: dict, overall: dict) -> str:  # noqa: C901
       - Encoder Model
       - Reranker Model
       - BM25 flag
-      - NDCG@10 (as percentage)
-      - MAP@10 (as percentage)
-      - Recall@10 (as percentage)
-      - Precision@10 (as percentage)
-      - QPS (rounded to 2 decimals)
+      - NDCG@10
+      - MAP@10
+      - Recall@10
+      - Precision@10
+      - QPS
 
     :param config: The configuration dictionary loaded from config.json.
     :param overall: The overall results dictionary loaded from overall_results.json.

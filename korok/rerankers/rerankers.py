@@ -7,7 +7,7 @@ class CrossEncoderReranker:
     def __init__(
         self,
         model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
-        max_length: int = 512,
+        max_length: int | None = None,
         trust_remote_code: bool = False,
         device: str | None = None,
         **kwargs: Any,
@@ -22,7 +22,11 @@ class CrossEncoderReranker:
         :param **kwargs: Additional keyword arguments.
         """
         self.cross_encoder = CrossEncoder(
-            model_name, max_length=max_length, trust_remote_code=trust_remote_code, device=device, **kwargs
+            model_name,
+            max_length=max_length,  # type: ignore[arg-type]
+            trust_remote_code=trust_remote_code,
+            device=device,
+            **kwargs,
         )
 
     def __call__(
