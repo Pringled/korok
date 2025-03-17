@@ -88,7 +88,7 @@ def evaluate_results(
     padded_scores = [scores + [0.0] * (max_len - len(scores)) for scores in all_scores]
     results_for_eval = postprocess_results_for_eval(all_ranked_results, np.array(padded_scores), query_ids)
     ndcg, mean_avg_precision, recall, precision = evaluate(qrels, results_for_eval, k_values)
-    return {"ndcg": ndcg, "mean_avg_precision": mean_avg_precision, "recall": recall, "precision": precision}
+    return {"ndcg": ndcg, "map": mean_avg_precision, "recall": recall, "precision": precision}
 
 
 def process_dataset(

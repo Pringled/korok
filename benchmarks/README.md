@@ -21,8 +21,8 @@ For the rerankers, the following models were benchmarked:
 
 | Encoder Model | Reranker Model | BM25 | NDCG@10 | MAP@10 | Recall@10 | Precision@10 | QPS |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| BAAI/bge-base-en-v1.5 | BAAI/bge-reranker-v2-m3 | False | 75.41 | N/A | 80.13 | 16.50 | 0.20 |
-| BAAI/bge-base-en-v1.5 | BAAI/bge-reranker-v2-m3 | True | 68.89 | N/A | 70.14 | 18.71 | 0.17 |
+| BAAI/bge-base-en-v1.5 | BAAI/bge-reranker-v2-m3 | False | 75.41 | 67.36 | 80.13 | 16.50 | 0.20 |
+| BAAI/bge-base-en-v1.5 | BAAI/bge-reranker-v2-m3 | True | 68.89 | 58.50 | 70.14 | 18.71 | 0.17 |
 | sentence-transformers/all-MiniLM-L6-v2 | BAAI/bge-reranker-v2-m3 | True | 68.36 | 56.77 | 68.31 | 20.69 | 0.18 |
 | ibm-granite/granite-embedding-30m-english | BAAI/bge-reranker-v2-m3 | True | 67.94 | 56.49 | 67.80 | 20.31 | 0.17 |
 | minishlab/potion-retrieval-32M | BAAI/bge-reranker-v2-m3 | True | 67.89 | 56.62 | 67.32 | 20.27 | 0.18 |
@@ -30,11 +30,11 @@ For the rerankers, the following models were benchmarked:
 | minishlab/potion-retrieval-32M | BAAI/bge-reranker-v2-m3 | False | 66.27 | 55.28 | 64.72 | 19.72 | 0.23 |
 | sentence-transformers/all-MiniLM-L6-v2 | BAAI/bge-reranker-v2-m3 | False | 66.26 | 54.93 | 65.72 | 19.62 | 0.21 |
 | None | BAAI/bge-reranker-v2-m3 | True | 65.88 | 55.04 | 64.09 | 19.58 | 0.18 |
-| BAAI/bge-base-en-v1.5 | None | True | 65.79 | N/A | 67.69 | 20.74 | 27.91 |
+| BAAI/bge-base-en-v1.5 | None | True | 65.79 | 53.35 | 67.69 | 20.74 | 27.91 |
 | ibm-granite/granite-embedding-30m-english | None | True | 64.16 | 51.73 | 66.89 | 20.32 | 100.19 |
-| BAAI/bge-base-en-v1.5 | None | False | 63.69 | N/A | 66.42 | 19.22 | 27.04 |
-| BAAI/bge-base-en-v1.5 | cross-encoder/ms-marco-MiniLM-L6-v2 | True | 63.34 | N/A | 65.33 | 20.00 | 3.17 |
-| BAAI/bge-base-en-v1.5 | cross-encoder/ms-marco-MiniLM-L6-v2 | False | 63.34 | N/A | 65.36 | 19.94 | 3.57 |
+| BAAI/bge-base-en-v1.5 | None | False | 63.69 | 52.02 | 66.42 | 19.22 | 27.04 |
+| BAAI/bge-base-en-v1.5 | cross-encoder/ms-marco-MiniLM-L6-v2 | True | 63.34 | 50.99 | 65.33 | 20.00 | 3.17 |
+| BAAI/bge-base-en-v1.5 | cross-encoder/ms-marco-MiniLM-L6-v2 | False | 63.34 | 51.05 | 65.36 | 19.94 | 3.57 |
 | sentence-transformers/all-MiniLM-L6-v2 | cross-encoder/ms-marco-MiniLM-L6-v2 | True | 63.33 | 50.91 | 65.68 | 20.07 | 3.50 |
 | ibm-granite/granite-embedding-30m-english | cross-encoder/ms-marco-MiniLM-L6-v2 | True | 63.06 | 50.75 | 65.28 | 19.90 | 3.46 |
 | minishlab/potion-retrieval-32M | cross-encoder/ms-marco-MiniLM-L6-v2 | True | 62.96 | 50.64 | 64.93 | 19.84 | 3.98 |
@@ -48,6 +48,7 @@ For the rerankers, the following models were benchmarked:
 | sentence-transformers/all-MiniLM-L6-v2 | None | False | 56.55 | 44.55 | 61.09 | 17.70 | 100.73 |
 | None | None | True | 55.96 | 43.40 | 59.42 | 18.90 | 2531.43 |
 | minishlab/potion-retrieval-32M | None | False | 50.90 | 38.44 | 56.57 | 17.09 | 2012.31 |
+
 
 ## Reproducibility
 
