@@ -197,7 +197,7 @@ def main(
     overall_qps = total_queries / total_query_time if total_query_time > 0 else 0.0
     avg_fit_time = total_fit_time / dataset_count if dataset_count > 0 else 0.0
     aggregated_scores: dict[str, dict[str, float]] = {}
-    for mtype in ["ndcg", "mean_avg_precision", "recall", "precision"]:
+    for mtype in ["ndcg", "map", "recall", "precision"]:
         sums: dict[str, float] = {}
         counts: dict[str, int] = {}
         for ds_metrics in all_metrics.values():
