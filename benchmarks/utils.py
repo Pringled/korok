@@ -19,6 +19,9 @@ def initialize_models(
     else:
         encoder = SentenceTransformer(encoder_model, trust_remote_code=True, device=device)
     reranker = CrossEncoder(reranker_model, trust_remote_code=True, device=device) if reranker_model else None
+    if reranker:
+        # Set the maximum length for the reranker to 512 tokens.
+        reranker.max_length = 512
     return encoder, reranker
 
 
