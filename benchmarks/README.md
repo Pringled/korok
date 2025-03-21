@@ -40,9 +40,14 @@ The following table contains the main benchmark results. This is a subset of the
 |:--:|
 |*Figure: The average NanoBEIR NDCG plotted against queries per second (log scale).*|
 
+
 ## Full Results
 
-The following table contains the full benchmark results.
+The following table contains the full benchmark results. Based on the full results, we draw the following conclusions:
+- Hybrid search always outperforms dense search.
+- Reranking always improves the performance.
+- When using a reranker, the bottleneck for throughput becomes the reranker, not the encoder. This means that a combination of a fast encoder and reranker does not necessarily result in a higher throughput than a slower encoder and reranker.
+- There is little to no effect on performance when adding a query instruction to the encoder in a hybrid retrieval or reranking setup.
 
 | Encoder Model | Reranker Model | BM25 | Instruction | NDCG@10 | MAP@10 | Recall@10 | Precision@10 | QPS |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
