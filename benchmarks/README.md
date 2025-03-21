@@ -1,6 +1,17 @@
 # Benchmarks
 
-The benchmarks in this directory evaluate the performance and throughput of different encoder and reranker models for dense,  sparse, and hybrid vector search. The benchmarks are all run on the [NanoBEIR datasets](https://huggingface.co/collections/zeta-alpha-ai/nanobeir-66e1a0af21dfd93e620cd9f6b1b3b3b3) Throughput is measured on a part of the [wikitext dataset](https://huggingface.co/datasets/Salesforce/wikitext). The benchmarks are run with the following setup:
+The benchmarks in this directory evaluate the performance and throughput of different encoder and reranker models for dense,  sparse, and hybrid vector search. The benchmarks are all run on the [NanoBEIR datasets](https://huggingface.co/collections/zeta-alpha-ai/nanobeir-66e1a0af21dfd93e620cd9f6b1b3b3b3) Throughput is measured on a part of the [wikitext dataset](https://huggingface.co/datasets/Salesforce/wikitext).
+
+The benchmark results are presented in the following sections:
+- [Setup](#setup)
+- [Main Results](#main-results)
+- [Full Results](#full-results)
+- [Reproducibility](#reproducibility)
+
+
+## Setup
+
+ The benchmarks are run with the following setup:
 - Throughput benchmarks are all run on CPU
 - The K value for the reranker is set to 30
 - The alpha value for hybrid search is set to 0.5
