@@ -167,7 +167,7 @@ class Pipeline:
 
         return results
 
-    def query(self, texts: list[str], k: int = 10, k_reranker: int = 30) -> QueryResult:
+    def query(self, texts: list[str], k: int = 10, k_reranker: int = 30, instruction: str | None = None) -> QueryResult:
         """
         Query the pipeline.
 
@@ -180,12 +180,17 @@ class Pipeline:
         :param texts: The list of texts to query.
         :param k: The number of results to return.
         :param k_reranker: The number of results to consider for reranking.
+        :param instruction: An optional instruction to add to the query (for dense retrieval).
         :return: The search results.
         """
+        # If an instruction is provided, combine it with each query for dense retrieval.
+        if instruction:
+            instruction_texts = [f"{instruction} {text}" for text in texts]
+
         # Compute dense results if both dense index and encoder are available
         dense_results = None
         if self.dense_index and self.encoder:
-            vectors = self.encoder.encode(texts, show_progressbar=True)
+            vectors = self.encoder.encode(instruction_texts, show_progressbar=True)
             dense_results = self.dense_index.query(vectors, k_reranker)
             # Convert distances to similarities
             dense_results = convert_distances_to_similarities(dense_results, self.distance_metric)

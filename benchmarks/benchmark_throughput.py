@@ -30,7 +30,8 @@ def main(
     alpha_value: float,
     k_reranker: int,
     save_path: str,
-    bm25: bool,
+    use_bm25: bool,
+    instruction: str | None,
     overwrite_results: bool,
     device: str | None,
     num_queries: int,
@@ -46,7 +47,7 @@ def main(
     Loads the specified corpus (optionally capped), fits a retrieval pipeline,
     runs a set number of queries to measure throughput, and saves the results.
     """
-    save_folder = build_save_folder_name(encoder_model, bm25, reranker_model, alpha_value, k_reranker)
+    save_folder = build_save_folder_name(encoder_model, use_bm25, reranker_model, alpha_value, k_reranker, instruction)
     output_dir = Path(save_path) / save_folder
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Using throughput results folder: {output_dir}")
@@ -69,7 +70,9 @@ def main(
     encoder, reranker = initialize_models(encoder_model, reranker_model, device)
     logger.info("Fitting pipeline...")
     fit_start = time.perf_counter()
-    pipeline = Pipeline.fit(texts=corpus_texts, encoder=encoder, use_bm25=bm25, reranker=reranker, alpha=alpha_value)
+    pipeline = Pipeline.fit(
+        texts=corpus_texts, encoder=encoder, use_bm25=use_bm25, reranker=reranker, alpha=alpha_value
+    )
     fit_time = time.perf_counter() - fit_start
     logger.info(f"Pipeline fitted in {fit_time:.4f} seconds.")
 
@@ -80,7 +83,7 @@ def main(
     logger.info("Running queries for throughput measurement...")
     query_start = time.perf_counter()
     for q in queries:
-        _ = pipeline.query([q], k=len(corpus_texts), k_reranker=k_reranker)
+        _ = pipeline.query([q], k=len(corpus_texts), k_reranker=k_reranker, instruction=instruction)
     total_query_time = time.perf_counter() - query_start
     logger.info(f"Processed {len(queries)} queries in {total_query_time:.4f} seconds.")
 
@@ -112,7 +115,8 @@ if __name__ == "__main__":
     parser.add_argument("--alpha-value", type=float, default=0.5, help="Alpha value (0 <= alpha <= 1).")
     parser.add_argument("--k-reranker", type=int, default=30, help="Number of top documents to re-rank.")
     parser.add_argument("--save-path", type=str, required=True, help="Directory to save results.")
-    parser.add_argument("--bm25", action="store_true", help="Use BM25 for hybrid search.")
+    parser.add_argument("--use-bm25", action="store_true", help="Use BM25 for hybrid search.")
+    parser.add_argument("--instruction", type=str, default=None, help="Optional instruction for the queries.")
     parser.add_argument(
         "--overwrite-results", action="store_true", default=False, help="Overwrite results if folder exists."
     )
@@ -133,7 +137,8 @@ if __name__ == "__main__":
         alpha_value=args.alpha_value,
         k_reranker=args.k_reranker,
         save_path=args.save_path,
-        bm25=args.bm25,
+        use_bm25=args.use_bm25,
+        instruction=args.instruction,
         overwrite_results=args.overwrite_results,
         device=args.device,
         num_queries=args.num_queries,

@@ -52,14 +52,19 @@ def build_hybrid_pipeline(
 
 
 def retrieve_query_results(
-    pipeline: Pipeline, queries: dict[str, str], doc_text_to_id: dict[str, str], k: int, k_reranker: int
+    pipeline: Pipeline,
+    queries: dict[str, str],
+    doc_text_to_id: dict[str, str],
+    k: int,
+    k_reranker: int,
+    instruction: str | None = None,
 ) -> tuple[list[list[str]], list[list[float]], list[str]]:
     """Retrieve ranked document IDs and scores for each query."""
     all_ranked_results: list[list[str]] = []
     all_scores: list[list[float]] = []
     query_ids: list[str] = []
     for qid, qtext in queries.items():
-        hybrid_results = pipeline.query([qtext], k=k, k_reranker=k_reranker)[0]
+        hybrid_results = pipeline.query([qtext], k=k, k_reranker=k_reranker, instruction=instruction)[0]
         ranked_doc_ids: list[str] = []
         scores: list[float] = []
         for doc_text, score in hybrid_results:
@@ -99,6 +104,7 @@ def process_dataset(
     alpha_value: float,
     use_bm25: bool,
     k_reranker: int,
+    instruction: str | None,
     output_dir: Path,
     k_values: list[int],
 ) -> tuple[dict[str, Any] | None, float, float, int]:
@@ -114,7 +120,7 @@ def process_dataset(
         logger.info(f"Pipeline fitted in {fit_time:.4f} seconds.")
         query_start = time.perf_counter()
         all_ranked_results, all_scores, query_ids = retrieve_query_results(
-            pipeline, queries, doc_text_to_id, k, k_reranker
+            pipeline, queries, doc_text_to_id, k, k_reranker, instruction
         )
         query_time = time.perf_counter() - query_start
         logger.info(f"Retrieved results for {len(query_ids)} queries in {query_time:.4f} seconds.")
@@ -138,6 +144,7 @@ def main(
     k_reranker: int,
     save_path: str,
     use_bm25: bool,
+    instruction: str | None,
     overwrite_results: bool,
     device: str | None,
 ) -> None:
@@ -158,7 +165,7 @@ def main(
         "touche2020": "zeta-alpha-ai/NanoTouche2020",
     }
     encoder, reranker = initialize_models(encoder_model, reranker_model, device)
-    save_folder = build_save_folder_name(encoder_model, use_bm25, reranker_model, alpha_value, k_reranker)
+    save_folder = build_save_folder_name(encoder_model, use_bm25, reranker_model, alpha_value, k_reranker, instruction)
     output_dir = Path(save_path) / save_folder
     if output_dir.exists() and not overwrite_results:
         logger.info(f"Output folder '{output_dir}' already exists and overwrite_results is False. Skipping evaluation.")
@@ -171,6 +178,8 @@ def main(
         "alpha_value": alpha_value,
         "k_reranker": k_reranker,
         "bm25": use_bm25,
+        "instruction": True if instruction else False,
+        "instruction_text": instruction if instruction else "",
         "device": device,
         "output_dir": str(output_dir),
         "dataset_name_to_id": dataset_name_to_id,
@@ -186,7 +195,16 @@ def main(
     dataset_count = 0
     for ds_name, hf_id in dataset_name_to_id.items():
         metrics, fit_time, query_time, num_queries = process_dataset(
-            ds_name, hf_id, encoder, reranker, alpha_value, use_bm25, k_reranker, output_dir, k_values
+            ds_name,
+            hf_id,
+            encoder,
+            reranker,
+            alpha_value,
+            use_bm25,
+            k_reranker,
+            instruction,
+            output_dir,
+            k_values,
         )
         if metrics is not None:
             all_metrics[ds_name] = metrics
@@ -246,8 +264,9 @@ if __name__ == "__main__":
     parser.add_argument("--k-reranker", type=int, default=30, help="Number of top documents to re-rank.")
     parser.add_argument("--save-path", type=str, required=True, help="Directory to save results.")
     parser.add_argument(
-        "--bm25", action="store_true", help="If set, BM25 (sparse retrieval) is used for hybrid search."
+        "--use-bm25", action="store_true", help="If set, BM25 (sparse retrieval) is used for hybrid search."
     )
+    parser.add_argument("--instruction", type=str, default=None, help="Optional instruction for the queries.")
     parser.add_argument(
         "--overwrite-results",
         action="store_true",
@@ -262,7 +281,8 @@ if __name__ == "__main__":
         alpha_value=args.alpha_value,
         k_reranker=args.k_reranker,
         save_path=args.save_path,
-        use_bm25=args.bm25,
+        use_bm25=args.use_bm25,
+        instruction=args.instruction,
         overwrite_results=args.overwrite_results,
         device=args.device,
     )

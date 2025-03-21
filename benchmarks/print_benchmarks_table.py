@@ -34,6 +34,7 @@ def generate_markdown_row(config: dict, overall: dict, throughput: dict) -> str:
       - Encoder Model
       - Reranker Model
       - BM25 flag
+      - Instruction flag
       - NDCG@10
       - MAP@10
       - Recall@10
@@ -48,6 +49,9 @@ def generate_markdown_row(config: dict, overall: dict, throughput: dict) -> str:
     encoder_model = config.get("encoder_model", "N/A")
     reranker_model = config.get("reranker_model", "N/A")
     bm25 = config.get("bm25", False)
+    # Check if "instruction" key exists, if not assume it's False.
+    instruction = config.get("instruction", False)
+
     aggregated_scores = overall.get("aggregated_scores", {})
     ndcg_raw = aggregated_scores.get("ndcg", {}).get("NDCG@10", None)
     if ndcg_raw is not None:
@@ -89,7 +93,10 @@ def generate_markdown_row(config: dict, overall: dict, throughput: dict) -> str:
             qps = "N/A"
     else:
         qps = "N/A"
-    row = f"| {encoder_model} | {reranker_model} | {bm25} | {ndcg_at_10} | {map_at_10} | {recall_at_10} | {precision_at_10} | {qps} |\n"
+    row = (
+        f"| {encoder_model} | {reranker_model} | {bm25} | {instruction} | "
+        f"{ndcg_at_10} | {map_at_10} | {recall_at_10} | {precision_at_10} | {qps} |\n"
+    )
     return row
 
 
@@ -128,8 +135,10 @@ def main() -> None:
         except Exception as e:
             logger.error(f"Error processing folder {subfolder.name}: {e}")
     rows_with_ndcg.sort(key=lambda x: x[0], reverse=True)
-    header = "| Encoder Model | Reranker Model | BM25 | NDCG@10 | MAP@10 | Recall@10 | Precision@10 | QPS |\n"
-    separator = "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+    header = (
+        "| Encoder Model | Reranker Model | BM25 | Instruction | NDCG@10 | MAP@10 | Recall@10 | Precision@10 | QPS |\n"
+    )
+    separator = "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
     table = header + separator
     for _, row in rows_with_ndcg:
         table += row
