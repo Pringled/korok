@@ -22,25 +22,23 @@ Both [BAAI/bge-base-en-v1.5](https://huggingface.co/BAAI/bge-base-en-v1.5) and [
 
 ## Main Results
 
-The following table contains the main benchmark results. This is a subset of the full results which gives a good insight into the performance impact of various settings. The results are sorted by NDCG@10.
+The following table contains the main benchmark results. This is a subset of the full results which gives a good overview of the best models in terms of NDCG@10 vs QPS. The results are sorted by NDCG@10.
+
 
 | Encoder Model | Reranker Model | BM25 | Instruction | NDCG@10 | MAP@10 | Recall@10 | Precision@10 | QPS |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | BAAI/bge-base-en-v1.5 | BAAI/bge-reranker-v2-m3 | True | False | 68.61 | 57.10 | 68.45 | 20.67 | 0.22 |
-| BAAI/bge-base-en-v1.5 | BAAI/bge-reranker-v2-m3 | True | True | 68.51 | 56.99 | 68.44 | 20.75 | 0.21 |
-| BAAI/bge-base-en-v1.5 | BAAI/bge-reranker-v2-m3 | False | False | 67.96 | 56.55 | 67.93 | 20.36 | 0.26 |
-| BAAI/bge-base-en-v1.5 | BAAI/bge-reranker-v2-m3 | False | True | 67.92 | 56.40 | 67.61 | 20.48 | 0.23 |
-| minishlab/potion-retrieval-32M | BAAI/bge-reranker-v2-m3 | True | False | 67.89 | 56.62 | 67.32 | 20.27 | 0.18 |
 | BAAI/bge-base-en-v1.5 | None | True | True | 65.90 | 53.51 | 67.49 | 20.78 | 27.64 |
-| None | BAAI/bge-reranker-v2-m3 | True | False | 65.88 | 55.04 | 64.09 | 19.58 | 0.18 |
-| BAAI/bge-base-en-v1.5 | None | True | False | 65.79 | 53.35 | 67.69 | 20.74 | 27.91 |
-| BAAI/bge-base-en-v1.5 | None | False | True | 64.17 | 52.54 | 66.35 | 19.49 | 26.08 |
-| BAAI/bge-base-en-v1.5 | None | False | False | 63.69 | 52.02 | 66.42 | 19.22 | 27.04 |
 | ibm-granite/granite-embedding-30m-english | None | True | False | 64.16 | 51.73 | 66.89 | 20.32 | 100.19 |
 | minishlab/potion-retrieval-32M | None | True | False | 57.37 | 44.50 | 61.21 | 19.31 | 1094.16 |
 | None | None | True | False | 55.96 | 43.40 | 59.42 | 18.90 | 2531.43 |
 | minishlab/potion-retrieval-32M | None | False | False | 50.90 | 38.44 | 56.57 | 17.09 | 2012.31 |
 
+
+
+| ![Description](../assets/images/ndcg_vs_qps.png) |
+|:--:|
+|*Figure: The average NanoBEIR NDCG plotted against queries per second (log scale).*|
 
 ## Full Results
 
