@@ -31,13 +31,16 @@ def build_save_folder_name(
     reranker_model: str | None,
     alpha_value: float,
     k_reranker: int,
+    instruction: str | None,
 ) -> str:
-    """Build the folder name based on the model names, BM25 flag, alpha value, and k_reranker."""
+    """Build the folder name based on the model names, BM25 flag, alpha value, k_reranker, and instruction."""
     encoder_part = encoder_model.split("/")[-1].replace("_", "-") if encoder_model else ""
     bm25_part = "bm25" if use_bm25 else ""
     reranker_part = reranker_model.split("/")[-1].replace("_", "-") if reranker_model else ""
     parts = [part for part in (encoder_part, bm25_part, reranker_part) if part]
     base_name = "_".join(parts)
+    if instruction:
+        base_name += "_instruction"
     return f"{base_name}_alpha{alpha_value}_kr{k_reranker}"
 
 
