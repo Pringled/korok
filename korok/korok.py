@@ -183,14 +183,14 @@ class Pipeline:
         :param instruction: An optional instruction to add to the query (for dense retrieval).
         :return: The search results.
         """
-        # If an instruction is provided, combine it with each query for dense retrieval.
-        if instruction:
-            instruction_texts = [f"{instruction} {text}" for text in texts]
-
         # Compute dense results if both dense index and encoder are available
         dense_results = None
         if self.dense_index and self.encoder:
-            vectors = self.encoder.encode(instruction_texts, show_progressbar=True)
+            # If an instruction is provided, combine it with each query for dense retrieval.
+            if instruction:
+                vectors = self.encoder.encode([f"{instruction} {text}" for text in texts], show_progressbar=True)
+            else:
+                vectors = self.encoder.encode(texts, show_progressbar=True)
             dense_results = self.dense_index.query(vectors, k_reranker)
             # Convert distances to similarities
             dense_results = convert_distances_to_similarities(dense_results, self.distance_metric)
